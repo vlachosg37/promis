@@ -12,6 +12,10 @@ logs/
 .pytest_cache/
 .ruff_cache/
 results/
+dist/
+build_tmp/
+*.sif
+*.tar
 
 # Committed synthetic BAM fixture.
 !tests/data/tiny_loci.csv

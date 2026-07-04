@@ -1,0 +1,16 @@
+.git/
+.github/
+.snakemake/
+output/
+logs/
+results/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.conda/
+.venv/
+venv/
+env/
+Dockerfile.promis

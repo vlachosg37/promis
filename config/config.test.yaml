@@ -1,6 +1,7 @@
 alignment_files: tests/data/tiny.bam
 input_dir: ""
 reference_genome: ""
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"
 
 output_dir: output/tiny-promis
 repeats: tests/data/tiny_loci.csv

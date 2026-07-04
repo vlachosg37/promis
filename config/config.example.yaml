@@ -5,6 +5,7 @@
 alignment_files: ""
 input_dir: ""
 reference_genome: ""
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"
 
 # Output directory for PROMIS tables and plots.
 output_dir: output/promis

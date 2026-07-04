@@ -1,0 +1,97 @@
+name: Container
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/vlachosg37/promis
+  SIF_IMAGE_NAME: ghcr.io/vlachosg37/promis-sif
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=
+            type=ref,event=tag
+
+      - name: Build test image
+        run: docker build -t promis:ci .
+
+      - name: Validate image
+        run: |
+          docker run --rm promis:ci python -m compileall promis tests
+          docker run --rm promis:ci pytest
+          docker run --rm promis:ci python tests/create_tiny_bam.py
+          docker run --rm promis:ci snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
+          docker run --rm promis:ci snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
+
+      - uses: eWaterCycle/setup-apptainer@v2
+
+      - name: Build SIF image
+        run: |
+          docker save --output promis.tar promis:ci
+          apptainer build promis.sif docker-archive://promis.tar
+          apptainer exec promis.sif pytest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: promis-sif
+          path: promis.sif
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: promis.sif
+
+      - uses: oras-project/setup-oras@v1
+        if: github.event_name != 'pull_request'
+
+      - name: Publish SIF image
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          short_sha="${GITHUB_SHA::7}"
+          oras push "${SIF_IMAGE_NAME}:${short_sha}" promis.sif:application/vnd.sylabs.sif.layer.v1.sif
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            oras push "${SIF_IMAGE_NAME}:latest" promis.sif:application/vnd.sylabs.sif.layer.v1.sif
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            oras push "${SIF_IMAGE_NAME}:${GITHUB_REF_NAME}" promis.sif:application/vnd.sylabs.sif.layer.v1.sif
+          fi
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        if: github.event_name != 'pull_request'
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
