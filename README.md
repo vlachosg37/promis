@@ -114,6 +114,100 @@ Native Windows may not install `pysam` reliably. With Docker Desktop running:
 docker run --rm -v ${PWD}:/work -w /work python:3.12-slim sh -lc "pip install pysam && python tests/create_tiny_bam.py"
 ```
 
+## Containers
+
+PROMIS publishes a Docker image to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/vlachosg37/promis:latest
+docker run --rm ghcr.io/vlachosg37/promis:latest pytest
+```
+
+Run the bundled tiny workflow test:
+
+```bash
+docker run --rm ghcr.io/vlachosg37/promis:latest \
+  snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
+```
+
+Run PROMIS with bind-mounted user data:
+
+```bash
+docker run --rm \
+  -v /path/to/input:/input \
+  -v /path/to/output:/output \
+  ghcr.io/vlachosg37/promis:latest \
+  snakemake -s promis/workflow/Snakefile --configfile /input/config.yaml --cores 4
+```
+
+Apptainer/Singularity is recommended for HPC systems. Pull the Docker image into
+a local SIF and run commands inside it:
+
+```bash
+apptainer pull promis.sif docker://ghcr.io/vlachosg37/promis:latest
+apptainer exec promis.sif pytest
+apptainer exec promis.sif \
+  snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
+```
+
+The container includes only PROMIS code, runtime/test dependencies, and the tiny
+fully synthetic test fixtures under `tests/data/`. No patient, TCGA, WES, WGS,
+panel, clinical, or local HPC data is included.
+
+### Local conda mode
+
+Use conda deployment when running directly on a workstation or server with conda:
+
+```bash
+snakemake \
+  -s promis/workflow/Snakefile \
+  --configfile config/config.yaml \
+  --use-conda \
+  --cores 8
+```
+
+### HPC usage with automatic Apptainer pull
+
+PROMIS defines a default container image:
+
+`docker://ghcr.io/vlachosg37/promis:latest`
+
+When Snakemake is run with Apptainer deployment enabled, Snakemake/Apptainer
+pulls the image on first use and caches it for later runs:
+
+```bash
+snakemake \
+  -s promis/workflow/Snakefile \
+  --configfile config/config.yaml \
+  --software-deployment-method apptainer \
+  --cores 8
+```
+
+Do not add `--use-conda` for this mode; the container already includes the
+PROMIS runtime environment.
+
+To pin a container version, set this in your config:
+
+```yaml
+container_image: "docker://ghcr.io/vlachosg37/promis:v0.1.0"
+```
+
+Manual fallback:
+
+```bash
+apptainer pull promis.sif docker://ghcr.io/vlachosg37/promis:latest
+apptainer exec promis.sif \
+  snakemake -s promis/workflow/Snakefile --configfile config/config.yaml --cores 8
+```
+
+Prebuilt SIF images are also published to GHCR as OCI artifacts:
+
+```bash
+apptainer pull promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
+apptainer exec promis.sif \
+  snakemake -s promis/workflow/Snakefile --configfile config/config.yaml --cores 8
+```
+
 ## Optional: Discovering microsatellite loci
 PROMIS ships with a helper CLI, `promis-find-ms-sites`, to scan a reference genome for microsatellite loci:
 

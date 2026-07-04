@@ -20,6 +20,8 @@ ENV_FILE = str(Path(workflow.source_path("environment.yml")).resolve())
 
 configfile: str(DEFAULT_CONFIG_PATH)
 
+container: config.get("container_image", "docker://ghcr.io/vlachosg37/promis:latest")
+
 
 def _resolve_data_path(value, default_relative):
     """Return the absolute path to a user-supplied or packaged resource."""

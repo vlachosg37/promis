@@ -4,6 +4,7 @@ repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.cs
 cytoband: database/cytoBand_hg38.txt  # Cytoband annotations used for plotting
 scripts_dir: scripts  # Override if you maintain custom script versions
 reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"
 
 # Output directory for generated reports and tables.
 output_dir: results/promis
