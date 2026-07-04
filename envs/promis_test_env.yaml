@@ -1,0 +1,14 @@
+name: promis-test
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pysam
+  - pandas
+  - numpy
+  - pyyaml
+  - pytest
+  - snakemake-minimal
+  - ruff
+  - black

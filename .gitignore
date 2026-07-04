@@ -2,3 +2,17 @@
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
+
+# Local outputs and caches
+.snakemake/
+__pycache__/
+*.pyc
+output/
+logs/
+.pytest_cache/
+.ruff_cache/
+results/
+
+# Committed synthetic BAM fixture.
+!tests/data/tiny.bam
+!tests/data/tiny.bam.bai
