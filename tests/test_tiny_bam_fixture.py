@@ -1,0 +1,32 @@
+from pathlib import Path
+
+import pandas as pd
+import pysam
+
+
+def test_tiny_loci_fixture_has_five_rows() -> None:
+    loci = Path("tests/data/tiny_loci.csv")
+
+    assert loci.exists()
+    assert len(pd.read_csv(loci)) == 5
+
+
+def test_tiny_bam_fixture_is_valid_and_indexed() -> None:
+    bam = Path("tests/data/tiny.bam")
+    bai = Path("tests/data/tiny.bam.bai")
+
+    assert bam.exists()
+    assert bai.exists()
+    assert pysam.quickcheck(str(bam)) in (None, "")
+
+    with pysam.AlignmentFile(bam, "rb") as fh:
+        assert fh.references == ("chr1",)
+        assert fh.lengths[0] >= 25_000_000
+        assert fh.has_index()
+        reads = list(fh.fetch(until_eof=True))
+
+    assert len(reads) == 30
+    assert all(not read.is_secondary for read in reads)
+    assert all(not read.is_supplementary for read in reads)
+    assert all(not read.is_duplicate for read in reads)
+    assert all(read.mapping_quality >= 60 for read in reads)

@@ -3,7 +3,7 @@
 repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv  # MSI loci metadata bundled with PROMIS
 cytoband: database/cytoBand_hg38.txt  # Cytoband annotations used for plotting
 scripts_dir: scripts  # Override if you maintain custom script versions
-reference_genome: /home/isilon/humangenetik/ARCHIVE/Georgios_archive/WGS_HRD/databases/hg19.fa
+reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
 
 # Output directory for generated reports and tables.
 output_dir: results/promis

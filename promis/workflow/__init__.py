@@ -1,4 +1,5 @@
 """Helpers for locating PROMIS workflow assets."""
+
 from __future__ import annotations
 
 from importlib import resources

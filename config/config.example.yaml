@@ -1,0 +1,28 @@
+# User-facing PROMIS configuration template.
+
+# Provide either explicit alignment files or an input directory. BAM works without
+# a reference genome; CRAM requires reference_genome to point to the matching FASTA.
+alignment_files: ""
+input_dir: ""
+reference_genome: ""
+
+# Output directory for PROMIS tables and plots.
+output_dir: output/promis
+
+# Bundled resources. Override only when using custom loci or annotations.
+repeats: promis/workflow/database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv
+cytoband: promis/workflow/database/cytoBand_hg38.txt
+scripts_dir: promis/workflow/scripts
+
+# Read extraction and instability thresholds.
+min_reads: 5
+min_dev_reads: 5
+msi_deviation: 0.1
+bq_threshold: 20
+mq_threshold: 40
+call_by: both
+min_dev_percent: 10.0
+min_length_percent: 20.0
+use_GMM: true
+balance_tolerance: 0.05
+min_total_reads: 50

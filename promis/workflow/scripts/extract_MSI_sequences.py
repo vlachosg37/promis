@@ -6,7 +6,7 @@ extract_MSI_sequences.py
 Description:
     This script extracts high-quality reads from an alignment file (BAM/CRAM) that fully span
     predefined microsatellite (MSI) repeat regions. It supports consensus BAMs
-    with UMIs and enables filtering by base quality, mapping quality, and 
+    with UMIs and enables filtering by base quality, mapping quality, and
     sequence ambiguity.
 
     If Unique Molecular Identifiers (UMIs) are present in the RX, UR, or UB
@@ -28,21 +28,24 @@ Features:
     • Outputs a deduplicated CSV table with MSI region read summaries
 
 Intended Use:
-    Designed for pre-processing consensus alignment files in MSI detection pipelines 
+    Designed for pre-processing consensus alignment files in MSI detection pipelines
     that require accurate, per-molecule analysis of microsatellite repeat lengths.
 
 ===============================================================================
 """
-import pysam
-import pandas as pd
+
+import argparse
 import logging
 import os
-import argparse
 import statistics
-from rich.progress import track, Progress
+
+import pandas as pd
+import pysam
+from rich.progress import Progress, track
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 def load_repeat_coordinates(repeats_file):
     logger.info(f"Loading repeat coordinates from: {repeats_file}")
@@ -52,14 +55,16 @@ def load_repeat_coordinates(repeats_file):
     repeats_df = repeats_df.sort_values(by=["Chromosome", "Start"]).reset_index(drop=True)
     return repeats_df
 
+
 def _open_alignment(filepath, reference_path=None, threads=None):
     lower_path = filepath.lower()
+    kwargs = {"threads": threads} if threads is not None else {}
     if lower_path.endswith(".cram"):
         if not reference_path:
             raise ValueError("A reference genome path is required when reading CRAM input.")
-        return pysam.AlignmentFile(filepath, "rc", reference_filename=reference_path, threads=threads)
+        return pysam.AlignmentFile(filepath, "rc", reference_filename=reference_path, **kwargs)
     if lower_path.endswith(".bam"):
-        return pysam.AlignmentFile(filepath, "rb", threads=threads)
+        return pysam.AlignmentFile(filepath, "rb", **kwargs)
     raise ValueError("Unsupported alignment format. Expected a .bam or .cram file.")
 
 
@@ -70,10 +75,13 @@ def check_chr_format(alignment_file, repeats_df, reference_path=None):
     bam_uses_chr = alignment_chromosomes[0].startswith("chr")
     repeats_uses_chr = repeats_df["Chromosome"].iloc[0].startswith("chr")
     if bam_uses_chr and not repeats_uses_chr:
-        repeats_df["Chromosome"] = repeats_df["Chromosome"].apply(lambda x: f"chr{x}" if not x.startswith("chr") else x)
+        repeats_df["Chromosome"] = repeats_df["Chromosome"].apply(
+            lambda x: f"chr{x}" if not x.startswith("chr") else x
+        )
     elif not bam_uses_chr and repeats_uses_chr:
         repeats_df["Chromosome"] = repeats_df["Chromosome"].str.replace("^chr", "", regex=True)
     return repeats_df
+
 
 def calculate_base_quality_stats(qualities):
     if not qualities:
@@ -92,7 +100,7 @@ def collapse_umi_families(df):
     quality and read length.
     """
     consensus_reads = []
-    for (umi, rstart, rend), family in df.groupby(["UMI", "Read_Start", "Read_End"]):
+    for _, family in df.groupby(["UMI", "Read_Start", "Read_End"]):
         # Identify the majority allele (most common sequence)
         majority_seq = family["Read_Sequence"].value_counts().idxmax()
         majority_reads = family[family["Read_Sequence"] == majority_seq]
@@ -104,7 +112,17 @@ def collapse_umi_families(df):
         consensus_reads.append(best_read)
     return pd.DataFrame(consensus_reads)
 
-def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_threshold, mq_threshold, keep_n, min_reads, reference_path=None):
+
+def extract_reads_from_alignment(
+    alignment_file,
+    repeats_df,
+    output_file,
+    bq_threshold,
+    mq_threshold,
+    keep_n,
+    min_reads,
+    reference_path=None,
+):
     try:
         sample_name = os.path.splitext(os.path.basename(alignment_file))[0]
         logger.info(f"Processing sample: {sample_name}")
@@ -138,24 +156,33 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
                         if umi is None:
                             umi = "NA"
                         if read_start <= repeat_start and read_end >= repeat_end:
-                            if (quality_stats["Mean_Quality"] is not None and quality_stats["Mean_Quality"] > bq_threshold) and \
-                               read.mapping_quality >= mq_threshold and \
-                               (keep_n or "N" not in read.query_sequence):
-                                extracted_data.append({
-                                    "Chromosome": chrom,
-                                    "Region_Start": start,
-                                    "Region_End": end,
-                                    "Read_Start": read_start,
-                                    "Read_End": read_end,
-                                    "Read_Name": read.query_name,
-                                    "Read_Sequence": read.query_sequence,
-                                    "UMI": umi,
-                                    "Mapping_Quality": read.mapping_quality,
-                                    "Read_Length": len(read.query_sequence) if read.query_sequence else 0,
-                                    "Expected_Repeat": expected_repeat,
-                                    "Repeat_Coordinates": f"{chrom}:{repeat_start}-{repeat_end}",
-                                    **quality_stats
-                                })
+                            if (
+                                (
+                                    quality_stats["Mean_Quality"] is not None
+                                    and quality_stats["Mean_Quality"] > bq_threshold
+                                )
+                                and read.mapping_quality >= mq_threshold
+                                and (keep_n or "N" not in read.query_sequence)
+                            ):
+                                extracted_data.append(
+                                    {
+                                        "Chromosome": chrom,
+                                        "Region_Start": start,
+                                        "Region_End": end,
+                                        "Read_Start": read_start,
+                                        "Read_End": read_end,
+                                        "Read_Name": read.query_name,
+                                        "Read_Sequence": read.query_sequence,
+                                        "UMI": umi,
+                                        "Mapping_Quality": read.mapping_quality,
+                                        "Read_Length": (
+                                            len(read.query_sequence) if read.query_sequence else 0
+                                        ),
+                                        "Expected_Repeat": expected_repeat,
+                                        "Repeat_Coordinates": f"{chrom}:{repeat_start}-{repeat_end}",
+                                        **quality_stats,
+                                    }
+                                )
                     progress.advance(task)
 
         extracted_df = pd.DataFrame(extracted_data)
@@ -176,11 +203,17 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
                 continue
 
             all_reads = []
-            reads = bam.fetch(contig=chrom, start=int(group["Region_Start"].iloc[0]), stop=int(group["Region_End"].iloc[0]))
+            reads = bam.fetch(
+                contig=chrom,
+                start=int(group["Region_Start"].iloc[0]),
+                stop=int(group["Region_End"].iloc[0]),
+            )
             for read in reads:
                 read_start = read.reference_start
                 read_end = read.reference_start + read.query_length
-                if read_start > int(group["Read_Start"].iloc[0]) or read_end < int(group["Read_End"].iloc[0]):
+                if read_start > int(group["Read_Start"].iloc[0]) or read_end < int(
+                    group["Read_End"].iloc[0]
+                ):
                     continue
                 qualities = read.query_qualities if read.query_qualities else []
                 q_stats = calculate_base_quality_stats(qualities)
@@ -195,21 +228,23 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
                         continue
                 if umi is None:
                     umi = "NA"
-                all_reads.append({
-                    "Chromosome": chrom,
-                    "Region_Start": int(group["Region_Start"].iloc[0]),
-                    "Region_End": int(group["Region_End"].iloc[0]),
-                    "Read_Start": read_start,
-                    "Read_End": read_end,
-                    "Read_Name": read.query_name,
-                    "Read_Sequence": read.query_sequence,
-                    "UMI": umi,
-                    "Mapping_Quality": read.mapping_quality,
-                    "Read_Length": len(read.query_sequence) if read.query_sequence else 0,
-                    "Expected_Repeat": group["Expected_Repeat"].iloc[0],
-                    "Repeat_Coordinates": repeat_coord,
-                    **q_stats
-                })
+                all_reads.append(
+                    {
+                        "Chromosome": chrom,
+                        "Region_Start": int(group["Region_Start"].iloc[0]),
+                        "Region_End": int(group["Region_End"].iloc[0]),
+                        "Read_Start": read_start,
+                        "Read_End": read_end,
+                        "Read_Name": read.query_name,
+                        "Read_Sequence": read.query_sequence,
+                        "UMI": umi,
+                        "Mapping_Quality": read.mapping_quality,
+                        "Read_Length": len(read.query_sequence) if read.query_sequence else 0,
+                        "Expected_Repeat": group["Expected_Repeat"].iloc[0],
+                        "Repeat_Coordinates": repeat_coord,
+                        **q_stats,
+                    }
+                )
 
             fallback_df = pd.DataFrame(all_reads)
             supplemental = pd.DataFrame()
@@ -218,7 +253,9 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
                 # Collapse fallback reads into families as well
                 fallback_df = collapse_umi_families(fallback_df)
                 # Score and sort fallback consensus reads by quality
-                fallback_df["Quality_Score"] = fallback_df["Mapping_Quality"] + fallback_df["Mean_Quality"]
+                fallback_df["Quality_Score"] = (
+                    fallback_df["Mapping_Quality"] + fallback_df["Mean_Quality"]
+                )
                 fallback_df = fallback_df.sort_values(by="Quality_Score", ascending=False)
 
                 # Calculate how many more reads needed
@@ -230,7 +267,7 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
             # Append deduplicated and supplemental reads for this locus
             combined = pd.concat([dedup, supplemental], ignore_index=True)
             final_rows.append(combined)
-                
+
         final_df = pd.concat(final_rows, ignore_index=True)
         final_df.to_csv(output_file, index=False)
         bam.close()
@@ -240,26 +277,47 @@ def extract_reads_from_alignment(alignment_file, repeats_df, output_file, bq_thr
         logger.error(f"An error occurred while processing the alignment file: {e}")
         raise
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Extract reads from an alignment file for specific repeat coordinates.")
-    parser.add_argument("-a", "--alignment", required=True, help="Path to the alignment file (.bam or .cram).")
-    parser.add_argument("-r", "--repeats", required=True, help="Path to the CSV file with repeat coordinates.")
-    parser.add_argument("-o", "--output", required=True, help="Path to save the extracted reads CSV file.")
-    parser.add_argument("-g", "--reference", help="Path to the reference genome FASTA (required for CRAM input).")
-    parser.add_argument("--bq_threshold", type=float, default=38, help="Base quality threshold (default: 38)")
-    parser.add_argument("--mq_threshold", type=int, default=58, help="Mapping quality threshold (default: 58)")
-    parser.add_argument("--keep_n", type=lambda x: (str(x).lower() == 'false'), default=False, help="Whether to keep reads containing 'N' bases (default: False)")
-    parser.add_argument("--min_reads", type=int, default=10, help="Minimum number of deduplicated reads per region (default: 10)")
+    parser = argparse.ArgumentParser(
+        description="Extract reads from an alignment file for specific repeat coordinates."
+    )
+    parser.add_argument(
+        "-a", "--alignment", required=True, help="Path to the alignment file (.bam or .cram)."
+    )
+    parser.add_argument(
+        "-r", "--repeats", required=True, help="Path to the CSV file with repeat coordinates."
+    )
+    parser.add_argument(
+        "-o", "--output", required=True, help="Path to save the extracted reads CSV file."
+    )
+    parser.add_argument(
+        "-g", "--reference", help="Path to the reference genome FASTA (required for CRAM input)."
+    )
+    parser.add_argument(
+        "--bq_threshold", type=float, default=38, help="Base quality threshold (default: 38)"
+    )
+    parser.add_argument(
+        "--mq_threshold", type=int, default=58, help="Mapping quality threshold (default: 58)"
+    )
+    parser.add_argument(
+        "--keep_n",
+        type=lambda x: (str(x).lower() == "false"),
+        default=False,
+        help="Whether to keep reads containing 'N' bases (default: False)",
+    )
+    parser.add_argument(
+        "--min_reads",
+        type=int,
+        default=10,
+        help="Minimum number of deduplicated reads per region (default: 10)",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug-level logging.")
     parser.add_argument("--info", action="store_true", help="Enable info-level logging.")
 
     args = parser.parse_args()
-    log_level = (
-        logging.DEBUG if args.verbose
-        else logging.INFO if args.info
-        else logging.WARNING
-    )
-    logging.basicConfig(level=log_level, format='%(levelname)s:%(message)s')
+    log_level = logging.DEBUG if args.verbose else logging.INFO if args.info else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(levelname)s:%(message)s")
     logger.setLevel(log_level)
     if args.alignment.lower().endswith(".cram") and not args.reference:
         raise ValueError("The --reference argument is required when the alignment input is CRAM.")

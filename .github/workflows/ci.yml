@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: envs/promis_test_env.yaml
+          environment-name: promis-test
+          cache-environment: true
+
+      - name: Install package
+        shell: bash -l {0}
+        run: python -m pip install -e . --no-deps
+
+      - name: Lint and format checks
+        shell: bash -l {0}
+        run: |
+          ruff check promis tests
+          black --check promis tests
+
+      - name: Compile Python
+        shell: bash -l {0}
+        run: python -m compileall promis tests
+
+      - name: Run tests
+        shell: bash -l {0}
+        run: pytest
+
+      - name: Regenerate tiny BAM fixture
+        shell: bash -l {0}
+        run: python tests/create_tiny_bam.py
+
+      - name: Validate tiny BAM fixture
+        shell: bash -l {0}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pysam
+
+          bam = Path("tests/data/tiny.bam")
+          bai = Path("tests/data/tiny.bam.bai")
+          assert bam.exists()
+          assert bai.exists()
+          assert pysam.quickcheck(str(bam)) in (None, "")
+          with pysam.AlignmentFile(bam, "rb") as fh:
+              assert fh.has_index()
+              assert len(list(fh.fetch(until_eof=True))) == 30
+          PY
+
+      - name: Snakemake dry-run
+        shell: bash -l {0}
+        run: snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
+
+      - name: Snakemake tiny fixture run
+        shell: bash -l {0}
+        run: snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1

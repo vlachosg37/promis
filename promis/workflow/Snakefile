@@ -14,9 +14,9 @@ repository. Configure paths and thresholds in ``config.yaml`` and launch with:
 from glob import glob
 from pathlib import Path
 
-WORKFLOW_DIR = Path(__file__).resolve().parent
+WORKFLOW_DIR = Path(workflow.source_path(".")).resolve()
 DEFAULT_CONFIG_PATH = WORKFLOW_DIR / "config.yaml"
-ENV_FILE = str((WORKFLOW_DIR / "environment.yml").resolve())
+ENV_FILE = str(Path(workflow.source_path("environment.yml")).resolve())
 
 configfile: str(DEFAULT_CONFIG_PATH)
 
@@ -65,6 +65,7 @@ cytoband = _resolve_data_path(config.get("cytoband"), "database/cytoBand_hg38.tx
 scripts_dir = _resolve_data_path(config.get("scripts_dir"), "scripts")
 output_dir = config.get("output_dir", "results/promis")
 reference_genome = config.get("reference_genome", "")
+reference_arg = f"--reference {reference_genome}" if reference_genome else ""
 
 msi_deviation = _as_float(config.get("msi_deviation", 0.1), 0.1)
 min_reads = _as_int(config.get("min_reads", 100), 100)
@@ -172,7 +173,7 @@ rule extract_reads:
             -a {input.alignment} \
             -r {input.repeats} \
             -o {output.extracted_csv} \
-            --reference {reference_genome} \
+            {reference_arg} \
             --bq_threshold {bq_threshold} \
             --mq_threshold {mq_threshold} \
             --min_reads {min_reads}
