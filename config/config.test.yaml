@@ -1,0 +1,20 @@
+alignment_files: tests/data/tiny.bam
+input_dir: ""
+reference_genome: ""
+
+output_dir: output/tiny-promis
+repeats: tests/data/tiny_loci.csv
+cytoband: promis/workflow/database/cytoBand_hg38.txt
+scripts_dir: promis/workflow/scripts
+
+min_reads: 1
+min_dev_reads: 1
+msi_deviation: 0.1
+bq_threshold: 30
+mq_threshold: 60
+call_by: both
+min_dev_percent: 10.0
+min_length_percent: 20.0
+use_GMM: false
+balance_tolerance: 0.05
+min_total_reads: 1

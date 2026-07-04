@@ -21,11 +21,12 @@ Requirements:
 """
 
 import argparse
-import pysam
-import pandas as pd
-import numpy as np
-from numba import njit
 from concurrent.futures import ProcessPoolExecutor, as_completed
+
+import numpy as np
+import pandas as pd
+import pysam
+from numba import njit
 from tqdm import tqdm
 
 # --- CONFIG ---
@@ -270,7 +271,11 @@ def main():
         dedup_df[["Upstream_Context", "Downstream_Context"]] = dedup_df.apply(
             lambda row: pd.Series(
                 get_context_from_chromseq(
-                    row["Chromosome"], int(row["Start"]), int(row["End"]), context_length, chrom_seqs
+                    row["Chromosome"],
+                    int(row["Start"]),
+                    int(row["End"]),
+                    context_length,
+                    chrom_seqs,
                 )
             ),
             axis=1,
@@ -278,7 +283,6 @@ def main():
 
         print("Context extraction done. Filtering loci without full context...")
 
-        n_before = len(dedup_df)
         mask_up = dedup_df["Upstream_Context"].str.len() == context_length
         mask_down = dedup_df["Downstream_Context"].str.len() == context_length
         mask_both = mask_up & mask_down

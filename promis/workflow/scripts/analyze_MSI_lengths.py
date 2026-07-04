@@ -12,15 +12,16 @@ Outputs
   and supporting read counts per locus.
 """
 
-import pandas as pd
-import logging
 import argparse
+import logging
 import re
 from difflib import SequenceMatcher
-from rich.progress import Progress
+
 import numpy as np
+import pandas as pd
 from numba import njit
 from numba.typed import List
+from rich.progress import Progress
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def parse_expected_repeat(expected_repeat):
         logger.warning(f"Invalid Expected_Repeat value: {expected_repeat}")
         return []
 
-    pattern = re.findall(r'\((\w+)\)(\d+)', expected_repeat)
+    pattern = re.findall(r"\((\w+)\)(\d+)", expected_repeat)
     if not pattern:
         logger.warning(f"Unexpected repeat pattern: {expected_repeat}")
         return []
@@ -53,12 +54,11 @@ def parse_expected_repeat(expected_repeat):
     return [(unit, int(count)) for unit, count in pattern]
 
 
-
 def find_approximate_match(sequence, subsequence, min_ratio=0.8):
     seq_len = len(sequence)
     sub_len = len(subsequence)
     for i in range(seq_len - sub_len + 1):
-        window = sequence[i:i + sub_len]
+        window = sequence[i : i + sub_len]
         match_ratio = SequenceMatcher(None, window, subsequence).ratio()
         if match_ratio >= min_ratio:
             return i, i + sub_len
@@ -67,7 +67,7 @@ def find_approximate_match(sequence, subsequence, min_ratio=0.8):
 
 def calculate_repeat_start_position(row):
     try:
-        repeat_start = int(row["Repeat_Coordinates"].split(':')[1].split('-')[0])
+        repeat_start = int(row["Repeat_Coordinates"].split(":")[1].split("-")[0])
         read_start = int(row["Read_Start"])
         position_in_read = repeat_start - read_start
         if 0 <= position_in_read < len(row["Read_Sequence"]):
@@ -89,6 +89,7 @@ def find_repeat_in_sequence(sequence, repeat_sequence, approximate=False):
     start_index = sequence.find(repeat_sequence)
     end_index = start_index + len(repeat_sequence) if start_index != -1 else -1
     return (start_index, end_index)
+
 
 @njit
 def find_repeat_run(sequence, repeat_unit, min_repeats=3):
@@ -140,6 +141,7 @@ def find_repeat_run(sequence, repeat_unit, min_repeats=3):
             i += 1
 
     return (max_run_start, max_run_end), max_run_repeats
+
 
 @njit
 def find_complex_repeat_run(sequence, repeat_components, min_fraction=0.67):
@@ -203,6 +205,7 @@ def find_complex_repeat_run(sequence, repeat_components, min_fraction=0.67):
 
     return (best_start, best_end), best_length
 
+
 @njit
 def check_repeat_extension(sequence, repeat_unit, start, end):
     upstream_count = 0
@@ -248,15 +251,15 @@ def verify_flanking_context(row, repeat_position, observed_length, repeat_units)
         if start == -1 or end == -1:
             return "Not Checked"
 
-        upstream_context_read = row["Read_Sequence"][max(0, start - 4):start]
-        
+        upstream_context_read = row["Read_Sequence"][max(0, start - 4) : start]
+
         # For both simple and complex, adjust downstream based on observed length
         downstream_start = start + observed_length if observed_length != "Not Found" else end
 
-        downstream_context_read = row["Read_Sequence"][downstream_start:downstream_start + 4]
+        downstream_context_read = row["Read_Sequence"][downstream_start : downstream_start + 4]
 
-        expected_upstream_context = row.get('Upstream_Context', "")
-        expected_downstream_context = row.get('Downstream_Context', "")
+        expected_upstream_context = row.get("Upstream_Context", "")
+        expected_downstream_context = row.get("Downstream_Context", "")
 
         upstream_match = upstream_context_read == expected_upstream_context
         downstream_match = downstream_context_read == expected_downstream_context
@@ -269,8 +272,6 @@ def verify_flanking_context(row, repeat_position, observed_length, repeat_units)
         return "Error"
 
 
-
-
 def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
     # Merge reference context data into extracted reads based on Chromosome, Start, End
     extracted_reads["Chromosome"] = extracted_reads["Chromosome"].astype(str)
@@ -280,7 +281,7 @@ def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
         reference_df,
         left_on=["Chromosome", "Region_Start", "Region_End"],
         right_on=["Chromosome", "Start", "End"],
-        how="left"
+        how="left",
     )
 
     results = []
@@ -288,30 +289,37 @@ def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
         task = progress.add_task("Analyzing reads", total=len(extracted_reads))
         for _, row in extracted_reads.iterrows():
             chrom, region_start, region_end, sequence = (
-                row['Chromosome'], row['Region_Start'], row['Region_End'], row['Read_Sequence']
+                row["Chromosome"],
+                row["Region_Start"],
+                row["Region_End"],
+                row["Read_Sequence"],
             )
             logger.info(f"Processing region: {chrom}:{region_start}-{region_end}")
 
-            sequence_array = np.frombuffer(sequence.encode('ascii'), dtype=np.uint8)
+            sequence_array = np.frombuffer(sequence.encode("ascii"), dtype=np.uint8)
 
             # Parse the repeat components, e.g., [(T, 7), (C, 7)]
-            repeat_components_raw = parse_expected_repeat(row['Expected_Repeat'])
+            repeat_components_raw = parse_expected_repeat(row["Expected_Repeat"])
             if not repeat_components_raw:
-                logger.warning(f"Failed to parse repeat components from Expected_Repeat for region: {chrom}:{region_start}-{region_end}")
+                logger.warning(
+                    f"Failed to parse repeat components from Expected_Repeat for region: {chrom}:{region_start}-{region_end}"
+                )
                 progress.advance(task)
                 continue
 
             # Determine expected repeat length and minimum acceptable repeats (2/3 of expected)
-            expected_repeats = sum(count for _, count in repeat_components_raw)
             expected_length = sum(len(unit) * count for unit, count in repeat_components_raw)
-            min_repeats = max(4, expected_repeats * 2 // 3)
 
             repeat_components = List()
             for unit, count in repeat_components_raw:
-                repeat_components.append((np.frombuffer(unit.encode('ascii'), dtype=np.uint8), count))
+                repeat_components.append(
+                    (np.frombuffer(unit.encode("ascii"), dtype=np.uint8), count)
+                )
 
             # Locate the best match for the entire complex repeat run
-            repeat_position_run, observed_length = find_complex_repeat_run(sequence_array, repeat_components, min_fraction=2 / 3)
+            repeat_position_run, observed_length = find_complex_repeat_run(
+                sequence_array, repeat_components, min_fraction=2 / 3
+            )
 
             # Approximate fallback removed for complex repeats – focus on exact run detection
             repeat_position_approx = (-1, -1)
@@ -333,41 +341,65 @@ def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
             else:
                 if len(repeat_components_raw) > 1:
                     # Complex repeat - check extensions with both first and last units
-                    first_repeat_unit = np.frombuffer(repeat_components_raw[0][0].encode('ascii'), dtype=np.uint8)
-                    last_repeat_unit = np.frombuffer(repeat_components_raw[-1][0].encode('ascii'), dtype=np.uint8)
+                    first_repeat_unit = np.frombuffer(
+                        repeat_components_raw[0][0].encode("ascii"), dtype=np.uint8
+                    )
+                    last_repeat_unit = np.frombuffer(
+                        repeat_components_raw[-1][0].encode("ascii"), dtype=np.uint8
+                    )
 
-                    tl_first, up_first, down_first = check_repeat_extension(sequence_array, first_repeat_unit, *repeat_position)
-                    tl_last, up_last, down_last = check_repeat_extension(sequence_array, last_repeat_unit, *repeat_position)
+                    tl_first, up_first, down_first = check_repeat_extension(
+                        sequence_array, first_repeat_unit, *repeat_position
+                    )
+                    tl_last, up_last, down_last = check_repeat_extension(
+                        sequence_array, last_repeat_unit, *repeat_position
+                    )
 
                     if tl_first > tl_last:
-                        total_length, extensions = tl_first, {"upstream": up_first, "downstream": down_first}
+                        total_length, extensions = tl_first, {
+                            "upstream": up_first,
+                            "downstream": down_first,
+                        }
                     else:
-                        total_length, extensions = tl_last, {"upstream": up_last, "downstream": down_last}
+                        total_length, extensions = tl_last, {
+                            "upstream": up_last,
+                            "downstream": down_last,
+                        }
                 else:
                     # Simple repeat - standard extension check
-                    first_repeat_unit = np.frombuffer(repeat_components_raw[0][0].encode('ascii'), dtype=np.uint8)
-                    tl, up_ext, down_ext = check_repeat_extension(sequence_array, first_repeat_unit, *repeat_position)
+                    first_repeat_unit = np.frombuffer(
+                        repeat_components_raw[0][0].encode("ascii"), dtype=np.uint8
+                    )
+                    tl, up_ext, down_ext = check_repeat_extension(
+                        sequence_array, first_repeat_unit, *repeat_position
+                    )
                     total_length = tl
                     extensions = {"upstream": up_ext, "downstream": down_ext}
 
                 deviation = abs(total_length - expected_length)
-                msi_status = "Unstable" if total_length < expected_length or deviation / expected_length >= threshold else "Stable"
-                context_match = verify_flanking_context(row, repeat_position, observed_length, repeat_components_raw)
+                msi_status = (
+                    "Unstable"
+                    if total_length < expected_length or deviation / expected_length >= threshold
+                    else "Stable"
+                )
+                context_match = verify_flanking_context(
+                    row, repeat_position, observed_length, repeat_components_raw
+                )
 
-
-
-            results.append({
-                **row.to_dict(),
-                "Repeat_Position_Exact": repeat_position_run,
-                "Repeat_Position_Approx": repeat_position_approx,
-                "Observed_Length": observed_length,
-                "Total_Length_With_Extensions": total_length,
-                "Extensions": extensions,
-                "Expected_Length": expected_length,
-                "Deviation": deviation,
-                "MSI_Status": msi_status,
-                "Context_Match": context_match
-            })
+            results.append(
+                {
+                    **row.to_dict(),
+                    "Repeat_Position_Exact": repeat_position_run,
+                    "Repeat_Position_Approx": repeat_position_approx,
+                    "Observed_Length": observed_length,
+                    "Total_Length_With_Extensions": total_length,
+                    "Extensions": extensions,
+                    "Expected_Length": expected_length,
+                    "Deviation": deviation,
+                    "MSI_Status": msi_status,
+                    "Context_Match": context_match,
+                }
+            )
             progress.advance(task)
 
     results_df = pd.DataFrame(results)
@@ -375,24 +407,29 @@ def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
     logger.info(f"Analysis results saved to: {output_file}")
 
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze repeat lengths and determine MSI status.")
     parser.add_argument("-e", "--extracted", required=True, help="Path to the extracted reads CSV.")
-    parser.add_argument("-r", "--reference", required=True, help="Path to the reference CSV with upstream and downstream contexts.")
+    parser.add_argument(
+        "-r",
+        "--reference",
+        required=True,
+        help="Path to the reference CSV with upstream and downstream contexts.",
+    )
     parser.add_argument("-o", "--output", required=True, help="Path to save the analysis results.")
-    parser.add_argument("-t", "--threshold", type=float, default=0.1, help="Threshold for MSI calling (default: 0.1).")
+    parser.add_argument(
+        "-t",
+        "--threshold",
+        type=float,
+        default=0.1,
+        help="Threshold for MSI calling (default: 0.1).",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging.")
     parser.add_argument("--info", action="store_true", help="Enable info-level logging.")
 
     args = parser.parse_args()
-    log_level = (
-        logging.DEBUG if args.verbose
-        else logging.INFO if args.info
-        else logging.WARNING
-    )
-    logging.basicConfig(level=log_level, format='%(levelname)s:%(message)s')
+    log_level = logging.DEBUG if args.verbose else logging.INFO if args.info else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(levelname)s:%(message)s")
     logger.setLevel(log_level)
 
     extracted_reads = load_extracted_reads(args.extracted)

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pysam
 
-
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 LOCI = DATA / "tiny_loci.csv"
@@ -53,7 +52,8 @@ def main() -> None:
             for read_index in range(READS_PER_LOCUS):
                 sequence = synthetic_sequence(row, read_index)
                 reference_start = region_start - 51 + read_index
-                bam.write(make_read(f"tiny_locus{locus_index}_read{read_index + 1}", reference_start, sequence))
+                read_name = f"tiny_locus{locus_index}_read{read_index + 1}"
+                bam.write(make_read(read_name, reference_start, sequence))
 
     pysam.index(str(BAM))
     print(f"created {BAM} and {BAI}")
