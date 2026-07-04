@@ -7,7 +7,13 @@ dependencies:
   - pysam
   - pandas
   - numpy
+  - scikit-learn
+  - matplotlib-base
+  - seaborn
   - pyyaml
+  - rich
+  - tqdm
+  - numba
   - pytest
   - snakemake-minimal
   - ruff
