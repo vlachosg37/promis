@@ -14,13 +14,6 @@ PROMIS is a tumor-only, reference-free microsatellite instability (MSI) caller b
 
 ## Installation
 
-### Via conda (recommended)
-PROMIS is available on Bioconda.
-
-```bash
-conda install -c bioconda -c conda-forge promis
-```
-
 ### From source
 
 ```bash
