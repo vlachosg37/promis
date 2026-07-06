@@ -1,7 +1,7 @@
 alignment_files: tests/data/tiny.bam
-input_dir: ""
-reference_genome: ""
-container_image: "docker://ghcr.io/vlachosg37/promis:latest"
+input_dir: ""  # Directory scanned recursively for BAM/CRAM files when alignment_files is empty
+reference_genome: ""  # Required for CRAM input; optional/empty for BAM input
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with container deployment
 
 output_dir: output/tiny-promis
 repeats: tests/data/tiny_loci.csv

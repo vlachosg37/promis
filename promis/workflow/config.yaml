@@ -1,16 +1,19 @@
 # Default configuration for the PROMIS workflow.
-# Relative paths are resolved from the installed workflow directory.
+# Relative output and input paths are resolved from the directory where Snakemake
+# is executed. Bundled resource paths below are resolved from the installed
+# workflow directory when left unchanged.
 repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv  # MSI loci metadata bundled with PROMIS
 cytoband: database/cytoBand_hg38.txt  # Cytoband annotations used for plotting
 scripts_dir: scripts  # Override if you maintain custom script versions
 reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
-container_image: "docker://ghcr.io/vlachosg37/promis:latest"
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with Snakemake Apptainer/Singularity deployment
 
 # Output directory for generated reports and tables.
 output_dir: results/promis
 
-# Provide input alignment files (.bam or .cram) either as a comma-separated list (alignment_files)
-# or by pointing to a directory that will be scanned recursively (input_dir).
+# Input alignments. Provide either:
+# - alignment_files: comma-separated BAM/CRAM paths
+# - input_dir: directory scanned recursively for BAM/CRAM files
 alignment_files: ""
 input_dir: ""
 
