@@ -17,7 +17,6 @@ from .workflow import (
 )
 
 DEFAULT_CONFIG_FILENAME = "config.yaml"
-DEFAULT_WORKDIR_LABEL = "workflow"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -44,7 +43,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--workdir",
         type=str,
-        default=DEFAULT_WORKDIR_LABEL,
+        default=None,
         help="Working directory from which Snakemake should execute the workflow.",
     )
     parser.add_argument(
@@ -82,6 +81,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the packaged default configuration file and exit.",
     )
     parser.add_argument(
+        "--copy-config",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Copy the packaged default configuration file to PATH and exit.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow --copy-config to overwrite an existing file.",
+    )
+    parser.add_argument(
         "--workflow-dir",
         action="store_true",
         help="Print the path to the installed workflow directory and exit.",
@@ -101,7 +112,6 @@ def main(argv: list[str] | None = None) -> int:
 
     snakefile_path = Path(get_snakefile_path())
     default_config = Path(get_default_config_path())
-    default_workdir = Path(get_workflow_path())
 
     if args.print_config:
         sys.stdout.write(default_config.read_text())
@@ -109,6 +119,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.workflow_dir:
         sys.stdout.write(str(get_workflow_path()) + os.linesep)
+        return 0
+
+    if args.copy_config:
+        display_destination = args.copy_config
+        destination = Path(args.copy_config).expanduser()
+        if not destination.is_absolute():
+            destination = destination.resolve()
+        if destination.exists() and not args.force:
+            parser.error(f"Refusing to overwrite existing file: {destination}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(default_config.read_text(), encoding="utf-8")
+        sys.stdout.write(
+            f"Wrote default PROMIS config to {display_destination}{os.linesep}"
+            f"Edit this file, then run:{os.linesep}"
+            f"promis --configfile {display_destination} --cores 8{os.linesep}"
+        )
         return 0
 
     if args.configfile:
@@ -121,8 +147,8 @@ def main(argv: list[str] | None = None) -> int:
     if not configfile.exists():
         parser.error(f"Configuration file not found: {configfile}")
 
-    if args.workdir == DEFAULT_WORKDIR_LABEL:
-        workdir = default_workdir
+    if args.workdir is None:
+        workdir = Path.cwd().resolve()
     else:
         workdir = Path(args.workdir).expanduser()
         if not workdir.is_absolute():

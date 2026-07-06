@@ -33,8 +33,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/promis-bio/promis"
-Repository = "https://github.com/promis-bio/promis"
+Homepage = "https://github.com/vlachosg37/promis"
+Repository = "https://github.com/vlachosg37/promis"
 
 [project.scripts]
 promis = "promis.cli:main"

@@ -19,7 +19,7 @@ build:
 
 requirements:
   host:
-    - python >=3.9
+    - python >=3.10
     - pip
     - setuptools >=64
     - pandas >=1.5
@@ -34,7 +34,7 @@ requirements:
     - numba >=0.57
     - snakemake >=9.9.0
   run:
-    - python >=3.9
+    - python >=3.10
     - pandas >=1.5
     - numpy >=1.23
     - scikit-learn >=1.1
@@ -56,14 +56,14 @@ test:
     - promis-find-ms-sites --help
 
 about:
-  home: https://github.com/promis-bio/promis
+  home: https://github.com/vlachosg37/promis
   summary: Snakemake pipeline for microsatellite instability analysis
   license: MIT
   license_file: LICENSE
 
 extra:
   recipe-maintainers:
-    - promis-bio
+    - vlachosg37
   channels:
     - conda-forge
     - bioconda

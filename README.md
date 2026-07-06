@@ -14,38 +14,57 @@ PROMIS is a tumor-only, reference-free microsatellite instability (MSI) caller b
 
 ## Installation
 
-### From source
+### Installed package mode
+
+After the Bioconda release:
 
 ```bash
-git clone https://github.com/promis-bio/promis.git
-cd promis
-
-conda env create -f promis/workflow/environment.yml
+mamba create -n promis -c bioconda -c conda-forge promis
 conda activate promis
 ```
 
-## Running the pipeline
-Use the packaged CLI wrapper (defaults shown):
+Current source install equivalent:
 
 ```bash
-# From a directory containing your config.yaml:
-promis --cores 8
+git clone https://github.com/vlachosg37/promis.git
+cd promis
+python -m pip install .
+```
 
-# Or, explicitly:
+## Running the pipeline
+
+### Installed CLI mode
+
+Run from a project directory, not from inside the installed package:
+
+```bash
+mkdir promis_run
+cd promis_run
+
+promis --copy-config config.yaml
+nano config.yaml
 promis --configfile config.yaml --cores 8
 ```
 
-By default PROMIS:
-- looks for `config.yaml` in the directory where you run the command,
-- executes the packaged workflow, and
-- enables `--use-conda` unless disabled.
+By default, the CLI launches the packaged workflow and writes relative outputs
+from the directory where you run `promis`. It enables `--use-conda` unless
+disabled with `--no-use-conda`.
 
 Additional Snakemake options (for example `--config input_dir=... output_dir=...`) can be passed through after the known PROMIS options.
+
+For direct Snakemake usage with an installed package:
+
+```bash
+snakemake \
+  -s "$(promis --workflow-dir)/Snakefile" \
+  --configfile config.yaml \
+  --cores 8
+```
 
 ## Configuration
 Place your `config.yaml` in the directory where you invoke `promis`, or point `--configfile` to its location. A template is packaged at `promis/workflow/config.yaml`; copy and edit it to set:
 - `output_dir`: destination for per-sample folders and combined results
-- `bam_files` **or** `input_dir`: explicit comma-separated BAM list or a directory to search recursively
+- `alignment_files` **or** `input_dir`: explicit comma-separated BAM/CRAM list or a directory to search recursively
 - `repeats`, `cytoband`, `scripts_dir`: override only if using custom resources
 - Thresholds such as `min_reads`, `min_dev_reads`, `bq_threshold`, `mq_threshold`, `min_dev_percent`, and `use_GMM`
 
@@ -107,66 +126,105 @@ Native Windows may not install `pysam` reliably. With Docker Desktop running:
 docker run --rm -v ${PWD}:/work -w /work python:3.12-slim sh -lc "pip install pysam && python tests/create_tiny_bam.py"
 ```
 
-## Containers
+## Run modes and containers
 
-PROMIS publishes a Docker image to GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/vlachosg37/promis:latest
-docker run --rm ghcr.io/vlachosg37/promis:latest pytest
-```
-
-Run the bundled tiny workflow test:
-
-```bash
-docker run --rm ghcr.io/vlachosg37/promis:latest \
-  snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
-```
-
-Run PROMIS with bind-mounted user data:
-
-```bash
-docker run --rm \
-  -v /path/to/input:/input \
-  -v /path/to/output:/output \
-  ghcr.io/vlachosg37/promis:latest \
-  snakemake -s promis/workflow/Snakefile --configfile /input/config.yaml --cores 4
-```
-
-Apptainer/Singularity is recommended for HPC systems. Pull the Docker image into
-a local SIF and run commands inside it:
-
-```bash
-apptainer pull promis.sif docker://ghcr.io/vlachosg37/promis:latest
-apptainer exec promis.sif pytest
-apptainer exec promis.sif \
-  snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
-```
+PROMIS publishes Docker and native SIF images to GitHub Container Registry. Use
+`latest` for quick testing; use version tags such as `v0.1.0` for real analyses
+once the release tag exists.
 
 The container includes only PROMIS code, runtime/test dependencies, and the tiny
 fully synthetic test fixtures under `tests/data/`. No patient, TCGA, WES, WGS,
 panel, clinical, or local HPC data is included.
 
-### Local conda mode
-
-Use conda deployment when running directly on a workstation or server with conda:
+### Cloned repository + Snakemake + conda
 
 ```bash
+git clone https://github.com/vlachosg37/promis.git
+cd promis
+
+mamba env create -f promis/workflow/environment.yml
+conda activate promis
+
+cp promis/workflow/config.yaml config.yaml
+nano config.yaml
+
 snakemake \
   -s promis/workflow/Snakefile \
-  --configfile config/config.yaml \
+  --configfile config.yaml \
   --use-conda \
   --cores 8
 ```
 
-### HPC usage with automatic Apptainer pull
+### Cloned repository + Snakemake + Apptainer/Singularity
 
-PROMIS defines a default container image:
+```bash
+git clone https://github.com/vlachosg37/promis.git
+cd promis
 
-`docker://ghcr.io/vlachosg37/promis:latest`
+cp promis/workflow/config.yaml config.yaml
+nano config.yaml
 
-When Snakemake is run with Apptainer deployment enabled, Snakemake/Apptainer
-pulls the image on first use and caches it for later runs:
+snakemake \
+  -s promis/workflow/Snakefile \
+  --configfile config.yaml \
+  --software-deployment-method apptainer \
+  --cores 8
+```
+
+Some clusters still call Apptainer `singularity`, and some Snakemake versions
+may require `--software-deployment-method singularity`.
+
+### Prebuilt SIF mode
+
+```bash
+singularity pull promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
+singularity exec promis.sif promis --copy-config config.yaml
+nano config.yaml
+```
+
+Run with bind-mounted data and results:
+
+```bash
+singularity exec \
+  --bind /path/to/data:/data \
+  --bind /path/to/results:/results \
+  promis.sif \
+  promis --configfile config.yaml --cores 8 --no-use-conda
+```
+
+Future pinned release form:
+
+```bash
+singularity pull promis_v0.1.0.sif oras://ghcr.io/vlachosg37/promis-sif:v0.1.0
+```
+
+### Docker mode
+
+```bash
+docker pull ghcr.io/vlachosg37/promis:latest
+docker run --rm ghcr.io/vlachosg37/promis:latest promis --help
+```
+
+Run with bind-mounted project and data directories:
+
+```bash
+docker run --rm \
+  -v /path/to/project:/project \
+  -v /path/to/data:/data \
+  -w /project \
+  ghcr.io/vlachosg37/promis:latest \
+  promis --configfile config.yaml --cores 8 --no-use-conda
+```
+
+### Snakemake automatic Apptainer pull
+
+Pin the image in your config when you need reproducible runs:
+
+```yaml
+container_image: "docker://ghcr.io/vlachosg37/promis:v0.1.0"
+```
+
+Then run:
 
 ```bash
 snakemake \
@@ -179,27 +237,56 @@ snakemake \
 Do not add `--use-conda` for this mode; the container already includes the
 PROMIS runtime environment.
 
-To pin a container version, set this in your config:
+### Docker-to-Apptainer fallback
 
-```yaml
-container_image: "docker://ghcr.io/vlachosg37/promis:v0.1.0"
-```
-
-Manual fallback:
+If the native SIF image is unavailable, pull the Docker image into a local SIF:
 
 ```bash
 apptainer pull promis.sif docker://ghcr.io/vlachosg37/promis:latest
 apptainer exec promis.sif \
-  snakemake -s promis/workflow/Snakefile --configfile config/config.yaml --cores 8
+  promis --configfile config.yaml --cores 8 --no-use-conda
 ```
 
-Prebuilt SIF images are also published to GHCR as OCI artifacts:
+## Pre-release run-mode checklist
+
+Installed CLI/source mode:
 
 ```bash
-apptainer pull promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
-apptainer exec promis.sif \
-  snakemake -s promis/workflow/Snakefile --configfile config/config.yaml --cores 8
+python -m pip install .
+mkdir -p /tmp/promis_cli_test
+cd /tmp/promis_cli_test
+promis --copy-config config.yaml
+promis --configfile config.yaml --dry-run --cores 1 --no-use-conda
 ```
+
+Repo Snakemake mode:
+
+```bash
+snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
+snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
+```
+
+Container/SIF mode:
+
+```bash
+singularity pull --force promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
+singularity exec promis.sif promis --help
+singularity exec promis.sif promis --copy-config config.yaml --force
+singularity exec promis.sif promis --configfile config.yaml --dry-run --cores 1 --no-use-conda
+```
+
+Docker mode:
+
+```bash
+docker pull ghcr.io/vlachosg37/promis:latest
+docker run --rm ghcr.io/vlachosg37/promis:latest promis --help
+```
+
+## Release
+
+Do not create release tags until CI on `main` is green and the GHCR packages are
+public and pullable. Version tags are preferred for reproducibility; `latest` is
+only a convenience tag.
 
 ## Optional: Discovering microsatellite loci
 PROMIS ships with a helper CLI, `promis-find-ms-sites`, to scan a reference genome for microsatellite loci:
