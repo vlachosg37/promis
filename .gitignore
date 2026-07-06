@@ -21,3 +21,12 @@ build_tmp/
 !tests/data/tiny_loci.csv
 !tests/data/tiny.bam
 !tests/data/tiny.bam.bai
+
+# Local user/HPC input data
+/data/
+/promis_local/
+/*.bam
+/*.bai
+/*.cram
+/*.crai
+/*.sam
