@@ -28,11 +28,16 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "-j",
+        "-c",
         "--cores",
-        type=int,
         default=1,
-        help="Number of cores/jobs to use when running Snakemake.",
+        help="Total cores available to Snakemake. Use 'all' to use all available cores.",
+    )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        default=None,
+        help="Maximum concurrent Snakemake jobs, mainly useful with cluster/executor/profile modes.",
     )
     parser.add_argument(
         "--configfile",
@@ -44,13 +49,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--workdir",
         type=str,
         default=None,
-        help="Working directory from which Snakemake should execute the workflow.",
+        help=(
+            "Working directory from which Snakemake should execute the workflow. "
+            "Defaults to the current directory; relative config and output paths "
+            "resolve from this directory."
+        ),
     )
-    parser.add_argument(
+    deployment_group = parser.add_mutually_exclusive_group()
+    deployment_group.add_argument(
         "--use-conda",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable Snakemake's --use-conda flag to create rule-specific environments.",
+        action="store_true",
+        help="Use Snakemake conda deployment.",
+    )
+    deployment_group.add_argument(
+        "--use-apptainer",
+        action="store_true",
+        help="Use Snakemake Apptainer deployment.",
+    )
+    deployment_group.add_argument(
+        "--use-singularity",
+        action="store_true",
+        help="Alias for Snakemake Apptainer/Singularity deployment.",
     )
     parser.add_argument(
         "--conda-prefix",
@@ -133,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(
             f"Wrote default PROMIS config to {display_destination}{os.linesep}"
             f"Edit this file, then run:{os.linesep}"
-            f"promis --configfile {display_destination} --cores 8{os.linesep}"
+            f"promis --configfile {display_destination} -c 8{os.linesep}"
         )
         return 0
 
@@ -173,8 +192,12 @@ def main(argv: list[str] | None = None) -> int:
         str(configfile),
     ]
 
+    if args.jobs:
+        command.extend(["--jobs", str(args.jobs)])
     if args.use_conda:
-        command.append("--use-conda")
+        command.extend(["--software-deployment-method", "conda"])
+    if args.use_apptainer or args.use_singularity:
+        command.extend(["--software-deployment-method", "apptainer"])
     if args.conda_prefix:
         command.extend(["--conda-prefix", args.conda_prefix])
     if args.dry_run:

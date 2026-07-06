@@ -43,12 +43,12 @@ cd promis_run
 
 promis --copy-config config.yaml
 nano config.yaml
-promis --configfile config.yaml --cores 8
+promis --configfile config.yaml -c 8
 ```
 
 By default, the CLI launches the packaged workflow and writes relative outputs
-from the directory where you run `promis`. It enables `--use-conda` unless
-disabled with `--no-use-conda`.
+from the directory where you run `promis`. It does not enable conda or
+container deployment unless you request it.
 
 Additional Snakemake options (for example `--config input_dir=... output_dir=...`) can be passed through after the known PROMIS options.
 
@@ -178,7 +178,7 @@ may require `--software-deployment-method singularity`.
 
 ```bash
 singularity pull promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
-singularity exec promis.sif promis --copy-config config.yaml
+singularity exec --bind "$PWD":"$PWD" --pwd "$PWD" promis.sif promis --copy-config config.yaml
 nano config.yaml
 ```
 
@@ -186,10 +186,11 @@ Run with bind-mounted data and results:
 
 ```bash
 singularity exec \
+  --bind "$PWD":"$PWD" \
   --bind /path/to/data:/data \
-  --bind /path/to/results:/results \
+  --pwd "$PWD" \
   promis.sif \
-  promis --configfile config.yaml --cores 8 --no-use-conda
+  promis --configfile config.yaml -c 8
 ```
 
 Future pinned release form:
@@ -213,7 +214,7 @@ docker run --rm \
   -v /path/to/data:/data \
   -w /project \
   ghcr.io/vlachosg37/promis:latest \
-  promis --configfile config.yaml --cores 8 --no-use-conda
+  promis --configfile config.yaml -c 8
 ```
 
 ### Snakemake automatic Apptainer pull
@@ -224,18 +225,23 @@ Pin the image in your config when you need reproducible runs:
 container_image: "docker://ghcr.io/vlachosg37/promis:v0.1.0"
 ```
 
-Then run:
+Then run through the installed CLI:
 
 ```bash
-snakemake \
-  -s promis/workflow/Snakefile \
-  --configfile config/config.yaml \
-  --software-deployment-method apptainer \
-  --cores 8
+promis --configfile config.yaml -c 8 --use-apptainer
 ```
 
-Do not add `--use-conda` for this mode; the container already includes the
-PROMIS runtime environment.
+`--use-singularity` is accepted as an alias for clusters that still use that
+name. Do not combine conda and Apptainer/Singularity deployment modes.
+
+### CLI conda deployment
+
+Use this mode when running outside a prebuilt container and you want Snakemake to
+create rule-specific conda environments:
+
+```bash
+promis --configfile config.yaml -c 8 --use-conda
+```
 
 ### Docker-to-Apptainer fallback
 
@@ -244,7 +250,7 @@ If the native SIF image is unavailable, pull the Docker image into a local SIF:
 ```bash
 apptainer pull promis.sif docker://ghcr.io/vlachosg37/promis:latest
 apptainer exec promis.sif \
-  promis --configfile config.yaml --cores 8 --no-use-conda
+  promis --configfile config.yaml -c 8
 ```
 
 ## Pre-release run-mode checklist
@@ -256,7 +262,7 @@ python -m pip install .
 mkdir -p /tmp/promis_cli_test
 cd /tmp/promis_cli_test
 promis --copy-config config.yaml
-promis --configfile config.yaml --dry-run --cores 1 --no-use-conda
+promis --configfile config.yaml --dry-run -c 1
 ```
 
 Repo Snakemake mode:
@@ -272,7 +278,7 @@ Container/SIF mode:
 singularity pull --force promis.sif oras://ghcr.io/vlachosg37/promis-sif:latest
 singularity exec promis.sif promis --help
 singularity exec promis.sif promis --copy-config config.yaml --force
-singularity exec promis.sif promis --configfile config.yaml --dry-run --cores 1 --no-use-conda
+singularity exec promis.sif promis --configfile config.yaml --dry-run -c 1
 ```
 
 Docker mode:
