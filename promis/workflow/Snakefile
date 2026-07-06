@@ -14,6 +14,8 @@ repository. Configure paths and thresholds in ``config.yaml`` and launch with:
 from glob import glob
 from pathlib import Path
 
+from promis.workflow import resolve_resource_path
+
 WORKFLOW_DIR = Path(workflow.source_path(".")).resolve()
 DEFAULT_CONFIG_PATH = WORKFLOW_DIR / "config.yaml"
 ENV_FILE = str(Path(workflow.source_path("environment.yml")).resolve())
@@ -23,18 +25,14 @@ configfile: str(DEFAULT_CONFIG_PATH)
 container: config.get("container_image", "docker://ghcr.io/vlachosg37/promis:latest")
 
 
-def _resolve_data_path(value, default_relative):
+def _resolve_resource_path(key, default_relative):
     """Return the absolute path to a user-supplied or packaged resource."""
 
-    candidate = Path(value) if value else Path(default_relative)
-    if candidate.is_absolute():
-        return str(candidate)
-
-    packaged_path = WORKFLOW_DIR / candidate
-    if packaged_path.exists():
-        return str(packaged_path.resolve())
-
-    return str(candidate.resolve())
+    return resolve_resource_path(
+        config.get(key, default_relative),
+        default_relative,
+        workflow.source_path(default_relative),
+    )
 
 
 def _as_bool(value, default=True):
@@ -59,12 +57,12 @@ def _as_float(value, default):
         return float(default)
 
 
-repeats = _resolve_data_path(
-    config.get("repeats"),
+repeats = _resolve_resource_path(
+    "repeats",
     "database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv",
 )
-cytoband = _resolve_data_path(config.get("cytoband"), "database/cytoBand_hg38.txt")
-scripts_dir = _resolve_data_path(config.get("scripts_dir"), "scripts")
+cytoband = _resolve_resource_path("cytoband", "database/cytoBand_hg38.txt")
+scripts_dir = _resolve_resource_path("scripts_dir", "scripts")
 output_dir = config.get("output_dir", "results/promis")
 reference_genome = config.get("reference_genome", "")
 reference_arg = f"--reference {reference_genome}" if reference_genome else ""

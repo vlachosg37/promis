@@ -68,7 +68,12 @@ Place your `config.yaml` in the directory where you invoke `promis`, or point `-
 - `repeats`, `cytoband`, `scripts_dir`: override only if using custom resources
 - Thresholds such as `min_reads`, `min_dev_reads`, `bq_threshold`, `mq_threshold`, `min_dev_percent`, and `use_GMM`
 
-Comments in the template describe each option. All bundled resource paths resolve automatically when left at their defaults.
+Comments in the template describe each option. Leave bundled resource paths such
+as `repeats`, `cytoband`, and `scripts_dir` unchanged unless you have custom
+resources; defaults resolve from the installed workflow, while custom relative
+resource paths resolve from the directory where you run PROMIS. Most users only
+need to edit `alignment_files`, `input_dir`, `output_dir`, `reference_genome`,
+and thresholds.
 
 Two portable config templates are provided:
 - `config/config.example.yaml`: user-facing template with relative paths only.
