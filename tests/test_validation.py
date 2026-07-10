@@ -33,3 +33,13 @@ def test_validate_config_warns_for_missing_index(tmp_path) -> None:
     assert result.ok
     assert result.samples == {"sample": str(bam)}
     assert result.warnings == [f"Alignment index not found: {bam}.bai"]
+
+
+def test_validate_config_rejects_invalid_boolean(tmp_path) -> None:
+    bam = tmp_path / "sample.bam"
+    bam.write_text("not a real bam\n", encoding="utf-8")
+
+    result = validate_config({"alignment_files": str(bam), "use_GMM": "maybe"}, run_dir=Path.cwd())
+
+    assert not result.ok
+    assert "use_GMM must be a boolean value" in result.errors[0]

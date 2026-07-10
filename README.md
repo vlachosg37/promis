@@ -131,6 +131,15 @@ panel, clinical, or local HPC data is used. The golden fixtures lock expected
 algorithm behavior: `toy_mss` should score 0/5 unstable loci and `toy_msi`
 should score 2/5 unstable loci.
 
+The final PROMIS sample score is the percentage of unstable evaluable loci.
+`combined_results.csv` preserves the legacy `Score` column and adds
+`Score_Percent`, `Score_Fraction`, `Evaluable_Loci`, `Unstable_Loci`, and
+`QC_Status` for unambiguous downstream use. `call_by: both` means the deviating
+read count and deviating read percentage thresholds must both pass. The
+`msi_deviation` setting is a read-level repeat-length shift threshold; it is not
+the final sample score threshold. Samples with no evaluable loci are reported as
+QC failures rather than true MSS calls.
+
 Regenerate the synthetic BAM/BAI fixtures:
 
 ```bash

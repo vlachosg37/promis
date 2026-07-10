@@ -28,6 +28,9 @@ NUMERIC_THRESHOLDS = {
     "balance_tolerance": float,
     "min_total_reads": int,
 }
+BOOLEAN_KEYS = {"use_GMM", "filter_common_unstable"}
+TRUE_VALUES = {"1", "true", "yes", "y"}
+FALSE_VALUES = {"0", "false", "no", "n"}
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,47 @@ def load_config(path: str | Path) -> dict[str, Any]:
     if not isinstance(loaded, dict):
         raise ValueError("Configuration file must contain a YAML mapping.")
     return loaded
+
+
+def parse_bool(value: Any, key: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in TRUE_VALUES:
+            return True
+        if lowered in FALSE_VALUES:
+            return False
+    raise ValueError(f"{key} must be a boolean value: true/false, yes/no, or 1/0.")
+
+
+def parse_int(value: Any, key: str) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be an integer.") from exc
+    if parsed < 0:
+        raise ValueError(f"{key} must be non-negative.")
+    return parsed
+
+
+def parse_float(value: Any, key: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be numeric.") from exc
+    if parsed < 0:
+        raise ValueError(f"{key} must be non-negative.")
+    return parsed
+
+
+def parse_call_by(value: Any) -> str:
+    parsed = str(value).strip().lower()
+    if parsed not in VALID_CALL_BY:
+        raise ValueError("call_by must be one of: both, count, percent.")
+    return parsed
 
 
 def collect_alignment_files(config: dict[str, Any], run_dir: str | Path) -> list[str]:
@@ -140,18 +184,28 @@ def validate_config(config: dict[str, Any], run_dir: str | Path | None = None) -
             errors.append(f"Configured {key} path not found: {resource_path}")
 
     call_by = str(config.get("call_by", "both"))
-    if call_by not in VALID_CALL_BY:
-        errors.append("call_by must be one of: both, count, percent")
+    try:
+        parse_call_by(call_by)
+    except ValueError as exc:
+        errors.append(str(exc))
+
+    for key in BOOLEAN_KEYS:
+        if key not in config:
+            continue
+        try:
+            parse_bool(config[key], key)
+        except ValueError as exc:
+            errors.append(str(exc))
 
     for key, caster in NUMERIC_THRESHOLDS.items():
         if key not in config:
             continue
         try:
-            value = caster(config[key])
-        except (TypeError, ValueError):
-            errors.append(f"{key} must be numeric.")
-            continue
-        if value < 0:
-            errors.append(f"{key} must be non-negative.")
+            if caster is int:
+                parse_int(config[key], key)
+            else:
+                parse_float(config[key], key)
+        except ValueError as exc:
+            errors.append(str(exc))
 
     return ValidationResult(samples=samples, errors=errors, warnings=warnings)

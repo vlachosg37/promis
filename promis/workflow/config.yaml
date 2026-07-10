@@ -24,8 +24,10 @@ msi_deviation: 0.1  # Minimum fraction of repeat-length shift to consider deviat
 bq_threshold: 20  # Minimum base quality for included reads
 mq_threshold: 40  # Minimum mapping quality for included reads
 
-# Instability calling logic.
-call_by: both  # Use "count", "percent", or "both" to flag unstable loci
+# Instability calling logic. The final sample score is the percentage of
+# unstable evaluable loci. combined_results.csv also reports Score_Fraction on
+# the 0-1 scale. Samples with no evaluable loci are QC failures, not MSS calls.
+call_by: both  # "both" means min_dev_reads AND min_dev_percent must pass
 min_dev_percent: 10.0  # Minimum percentage of deviating reads for instability
 min_length_percent: 20.0  # Minimum percent difference from reference length
 use_GMM: true  # Fit a Gaussian Mixture Model to refine stable repeat length

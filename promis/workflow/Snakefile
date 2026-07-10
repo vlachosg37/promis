@@ -11,10 +11,17 @@ repository. Configure paths and thresholds in ``config.yaml`` and launch with:
     snakemake -s promis/workflow/Snakefile --use-conda --cores 8 --configfile config.yaml
 """
 
-from glob import glob
 from pathlib import Path
 
-from promis.validation import build_sample_map
+from promis import __version__
+from promis.validation import (
+    collect_alignment_files,
+    parse_bool,
+    parse_call_by,
+    parse_float,
+    parse_int,
+    validate_config,
+)
 from promis.workflow import resolve_resource_path
 
 WORKFLOW_DIR = Path(workflow.source_path(".")).resolve()
@@ -36,26 +43,9 @@ def _resolve_resource_path(key, default_relative):
     )
 
 
-def _as_bool(value, default=True):
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).lower() in {"1", "true", "yes", "y"}
-
-
-def _as_int(value, default):
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return int(default)
-
-
-def _as_float(value, default):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return float(default)
+validation_result = validate_config(config, run_dir=Path.cwd())
+if validation_result.errors:
+    raise ValueError("Invalid PROMIS config:\n- " + "\n- ".join(validation_result.errors))
 
 
 repeats = _resolve_resource_path(
@@ -68,47 +58,23 @@ output_dir = config.get("output_dir", "results/promis")
 reference_genome = config.get("reference_genome", "")
 reference_arg = f"--reference {reference_genome}" if reference_genome else ""
 
-msi_deviation = _as_float(config.get("msi_deviation", 0.1), 0.1)
-min_reads = _as_int(config.get("min_reads", 100), 100)
-bq_threshold = _as_float(config.get("bq_threshold", 28), 28)
-mq_threshold = _as_int(config.get("mq_threshold", 40), 40)
-min_dev_reads = _as_int(config.get("min_dev_reads", 30), 30)
-call_by = config.get("call_by", "both")
-min_dev_percent = _as_float(config.get("min_dev_percent", 10.0), 10.0)
-min_length_percent = _as_float(config.get("min_length_percent", 5.0), 5.0)
-use_GMM = _as_bool(config.get("use_GMM", True), True)
-balance_tolerance = _as_float(config.get("balance_tolerance", 0.01), 0.01)
-min_total_reads = _as_int(config.get("min_total_reads", 50), 50)
+msi_deviation = parse_float(config.get("msi_deviation", 0.1), "msi_deviation")
+min_reads = parse_int(config.get("min_reads", 100), "min_reads")
+bq_threshold = parse_float(config.get("bq_threshold", 28), "bq_threshold")
+mq_threshold = parse_int(config.get("mq_threshold", 40), "mq_threshold")
+min_dev_reads = parse_int(config.get("min_dev_reads", 30), "min_dev_reads")
+call_by = parse_call_by(config.get("call_by", "both"))
+min_dev_percent = parse_float(config.get("min_dev_percent", 10.0), "min_dev_percent")
+min_length_percent = parse_float(config.get("min_length_percent", 5.0), "min_length_percent")
+use_GMM = parse_bool(config.get("use_GMM", True), "use_GMM")
+balance_tolerance = parse_float(config.get("balance_tolerance", 0.01), "balance_tolerance")
+min_total_reads = parse_int(config.get("min_total_reads", 50), "min_total_reads")
 
 config["repeats"] = repeats
 config["cytoband"] = cytoband
 config["scripts_dir"] = scripts_dir
 
-# Optional inputs
-alignment_files_value = config.get("alignment_files", config.get("bam_files", ""))
-input_dir = config.get("input_dir", "")
-
-
-def _collect_alignment_files(alignment_value, search_dir):
-    if isinstance(alignment_value, list):
-        alignment_list = alignment_value
-    elif isinstance(alignment_value, str) and alignment_value:
-        alignment_list = [entry.strip() for entry in alignment_value.split(",") if entry.strip()]
-    else:
-        alignment_list = []
-
-    if alignment_list:
-        return alignment_list
-
-    if search_dir:
-        bam_matches = glob(str(Path(search_dir) / "**" / "*.bam"), recursive=True)
-        cram_matches = glob(str(Path(search_dir) / "**" / "*.cram"), recursive=True)
-        return sorted(bam_matches + cram_matches)
-
-    return []
-
-
-alignment_files = _collect_alignment_files(alignment_files_value, input_dir)
+alignment_files = collect_alignment_files(config, Path.cwd())
 
 if not alignment_files:
     raise ValueError(
@@ -118,10 +84,7 @@ if not alignment_files:
 if not output_dir:
     raise ValueError("Please specify the 'output_dir' path in the config.")
 
-sample_to_alignment, duplicate_samples = build_sample_map(alignment_files)
-if duplicate_samples:
-    raise ValueError("Duplicate sample names detected: " + ", ".join(duplicate_samples))
-
+sample_to_alignment = validation_result.samples
 sample_names = list(sample_to_alignment)
 
 rule all:
@@ -133,6 +96,8 @@ rule all:
             output_dir=output_dir,
             sample=sample_names,
         ),
+        f"{output_dir}/resolved_config.yaml",
+        f"{output_dir}/run_metadata.json",
         expand(
             "{output_dir}/{sample}/{sample}_repeat_type_summary.csv",
             output_dir=output_dir,
@@ -158,6 +123,82 @@ rule all:
             output_dir=output_dir,
             sample=sample_names,
         ),
+
+rule write_provenance:
+    """Write resolved config and run metadata for reproducible reviewer handoff."""
+
+    output:
+        resolved_config=f"{output_dir}/resolved_config.yaml",
+        run_metadata=f"{output_dir}/run_metadata.json",
+    run:
+        import json
+        import platform
+        import sys
+        from datetime import datetime, timezone
+        from importlib import metadata
+        from pathlib import Path
+
+        import yaml
+
+        Path(output.resolved_config).parent.mkdir(parents=True, exist_ok=True)
+
+        thresholds = {
+            "msi_deviation": msi_deviation,
+            "min_reads": min_reads,
+            "bq_threshold": bq_threshold,
+            "mq_threshold": mq_threshold,
+            "min_dev_reads": min_dev_reads,
+            "call_by": call_by,
+            "min_dev_percent": min_dev_percent,
+            "min_length_percent": min_length_percent,
+            "use_GMM": use_GMM,
+            "balance_tolerance": balance_tolerance,
+            "min_total_reads": min_total_reads,
+        }
+        resolved_config = dict(config)
+        resolved_config.update(
+            {
+                "output_dir": output_dir,
+                "repeats": repeats,
+                "cytoband": cytoband,
+                "scripts_dir": scripts_dir,
+                "reference_genome": reference_genome,
+                "alignment_files": alignment_files,
+                "samples": sample_to_alignment,
+                "thresholds": thresholds,
+            }
+        )
+        Path(output.resolved_config).write_text(
+            yaml.safe_dump(resolved_config, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        try:
+            snakemake_version = metadata.version("snakemake")
+        except metadata.PackageNotFoundError:
+            snakemake_version = "unknown"
+
+        run_metadata = {
+            "promis_version": __version__,
+            "snakemake_version": snakemake_version,
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "run_directory": str(Path.cwd()),
+            "workflow_directory": str(WORKFLOW_DIR),
+            "sample_count": len(sample_names),
+            "samples": sample_to_alignment,
+            "resources": {
+                "repeats": repeats,
+                "cytoband": cytoband,
+                "scripts_dir": scripts_dir,
+            },
+            "thresholds": thresholds,
+        }
+        Path(output.run_metadata).write_text(
+            json.dumps(run_metadata, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
 rule extract_reads:
     """Pull high-quality reads spanning MSI loci from each alignment file."""
@@ -298,9 +339,21 @@ rule combine_results:
         import re
         from pathlib import Path
 
+        columns = [
+            "Score",
+            "Unstable regions",
+            "Total regions",
+            "Call status",
+            "Sample",
+            "Evaluable_Loci",
+            "Unstable_Loci",
+            "Score_Percent",
+            "Score_Fraction",
+            "QC_Status",
+        ]
         inputs = list(input)
         if not inputs:
-            pd.DataFrame(columns=["Score", "Unstable regions", "Sample"]).to_csv(output.combined_csv, index=False)
+            pd.DataFrame(columns=columns).to_csv(output.combined_csv, index=False)
             return
 
         combined_rows = []
@@ -324,16 +377,30 @@ rule combine_results:
                     if not match:
                         continue
                     score = float(match.group(1))
-                    unstable_regions = f"{match.group(2)}/{match.group(3)}"
+                    unstable_count = int(match.group(2))
                     total_regions = int(match.group(3))
+                    unstable_regions = f"{unstable_count}/{total_regions}"
                     call_status = "PASS"
+                qc_status = call_status
+                if total_regions == 0:
+                    score = pd.NA
+                    score_fraction = pd.NA
+                    qc_status = "NO_EVALUABLE_LOCI"
+                    call_status = "NO_EVALUABLE_LOCI"
+                else:
+                    score_fraction = score / 100.0
                 combined_rows.append({
                     "Score": score,
                     "Unstable regions": unstable_regions,
                     "Total regions": total_regions,
                     "Call status": call_status,
-                    "Sample": sample_name
+                    "Sample": sample_name,
+                    "Evaluable_Loci": total_regions,
+                    "Unstable_Loci": unstable_count,
+                    "Score_Percent": score,
+                    "Score_Fraction": score_fraction,
+                    "QC_Status": qc_status,
                 })
 
-        combined_df = pd.DataFrame(combined_rows)
+        combined_df = pd.DataFrame(combined_rows, columns=columns)
         combined_df.to_csv(output.combined_csv, index=False)
