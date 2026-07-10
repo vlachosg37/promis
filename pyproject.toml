@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Snakemake pipeline for microsatellite instability analysis"
 readme = "README.md"
 authors = [{ name = "PROMIS developers" }]
