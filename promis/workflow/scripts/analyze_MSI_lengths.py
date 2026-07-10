@@ -25,6 +25,18 @@ from rich.progress import Progress
 
 logger = logging.getLogger(__name__)
 
+RESULT_COLUMNS = [
+    "Repeat_Position_Exact",
+    "Repeat_Position_Approx",
+    "Observed_Length",
+    "Total_Length_With_Extensions",
+    "Extensions",
+    "Expected_Length",
+    "Deviation",
+    "MSI_Status",
+    "Context_Match",
+]
+
 
 def load_extracted_reads(extracted_csv):
     logger.info(f"Loading extracted reads from: {extracted_csv}")
@@ -273,6 +285,13 @@ def verify_flanking_context(row, repeat_position, observed_length, repeat_units)
 
 
 def analyze_repeats(extracted_reads, reference_df, output_file, threshold=0.1):
+    if extracted_reads.empty:
+        pd.DataFrame(columns=list(extracted_reads.columns) + RESULT_COLUMNS).to_csv(
+            output_file, index=False
+        )
+        logger.info(f"No extracted reads to analyze. Empty output saved to: {output_file}")
+        return
+
     # Merge reference context data into extracted reads based on Chromosome, Start, End
     extracted_reads["Chromosome"] = extracted_reads["Chromosome"].astype(str)
     reference_df["Chromosome"] = reference_df["Chromosome"].astype(str)

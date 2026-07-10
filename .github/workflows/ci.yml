@@ -31,30 +31,31 @@ jobs:
         shell: bash -l {0}
         run: python -m compileall promis tests
 
-      - name: Run tests
-        shell: bash -l {0}
-        run: pytest
-
-      - name: Regenerate tiny BAM fixture
+      - name: Regenerate synthetic BAM fixtures
         shell: bash -l {0}
         run: python tests/create_tiny_bam.py
 
-      - name: Validate tiny BAM fixture
+      - name: Validate synthetic BAM fixtures
         shell: bash -l {0}
         run: |
           python - <<'PY'
           from pathlib import Path
           import pysam
 
-          bam = Path("tests/data/tiny.bam")
-          bai = Path("tests/data/tiny.bam.bai")
-          assert bam.exists()
-          assert bai.exists()
-          assert pysam.quickcheck(str(bam)) in (None, "")
-          with pysam.AlignmentFile(bam, "rb") as fh:
-              assert fh.has_index()
-              assert len(list(fh.fetch(until_eof=True))) == 30
+          for sample in ("tiny", "toy_mss", "toy_msi"):
+              bam = Path(f"tests/data/{sample}.bam")
+              bai = Path(f"tests/data/{sample}.bam.bai")
+              assert bam.exists()
+              assert bai.exists()
+              assert pysam.quickcheck(str(bam)) in (None, "")
+              with pysam.AlignmentFile(bam, "rb") as fh:
+                  assert fh.has_index()
+                  assert len(list(fh.fetch(until_eof=True))) == 30
           PY
+
+      - name: Run tests
+        shell: bash -l {0}
+        run: pytest
 
       - name: Snakemake dry-run
         shell: bash -l {0}
@@ -63,3 +64,7 @@ jobs:
       - name: Snakemake tiny fixture run
         shell: bash -l {0}
         run: snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
+
+      - name: Snakemake golden fixture run
+        shell: bash -l {0}
+        run: snakemake -s promis/workflow/Snakefile --configfile config/config.golden.yaml --cores 1

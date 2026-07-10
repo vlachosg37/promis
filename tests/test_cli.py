@@ -182,3 +182,93 @@ def test_cli_respects_explicit_workdir(tmp_path, monkeypatch) -> None:
     assert cli.main(["--configfile", "config.yaml", "--workdir", str(run_dir)]) == 0
 
     assert captured["cwd"] == str(run_dir.resolve())
+
+
+def test_check_passes_for_existing_bam_and_index(tmp_path, capsys) -> None:
+    bam = tmp_path / "sample.bam"
+    bai = tmp_path / "sample.bam.bai"
+    bam.write_text("not a real bam; validation only checks paths\n", encoding="utf-8")
+    bai.write_text("index placeholder\n", encoding="utf-8")
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"alignment_files: {bam}\noutput_dir: results/promis\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["--configfile", str(config), "--check"]) == 0
+
+    out = capsys.readouterr().out
+    assert "PROMIS config check passed." in out
+    assert "Samples: 1" in out
+    assert "sample:" in out
+
+
+def test_check_fails_for_duplicate_sample_names(tmp_path, capsys) -> None:
+    run1 = tmp_path / "run1"
+    run2 = tmp_path / "run2"
+    run1.mkdir()
+    run2.mkdir()
+    for directory in (run1, run2):
+        bam = directory / "sample.bam"
+        bam.write_text("not a real bam\n", encoding="utf-8")
+        (directory / "sample.bam.bai").write_text("index\n", encoding="utf-8")
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"alignment_files:\n  - {run1 / 'sample.bam'}\n  - {run2 / 'sample.bam'}\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["--configfile", str(config), "--check"]) == 1
+
+    out = capsys.readouterr().out
+    assert "ERROR: Duplicate sample names detected: sample" in out
+
+
+def test_check_fails_for_cram_without_reference(tmp_path, capsys) -> None:
+    cram = tmp_path / "sample.cram"
+    cram.write_text("not a real cram\n", encoding="utf-8")
+    (tmp_path / "sample.cram.crai").write_text("index\n", encoding="utf-8")
+    config = tmp_path / "config.yaml"
+    config.write_text(f"alignment_files: {cram}\n", encoding="utf-8")
+
+    assert cli.main(["--configfile", str(config), "--check"]) == 1
+
+    out = capsys.readouterr().out
+    assert "ERROR: CRAM input requires reference_genome" in out
+
+
+def test_init_writes_config_with_input_and_output_paths(tmp_path, capsys) -> None:
+    config = tmp_path / "config.yaml"
+
+    assert (
+        cli.main(
+            [
+                "init",
+                "--configfile",
+                str(config),
+                "--input-dir",
+                "data",
+                "--output-dir",
+                "results/promis",
+                "--mode",
+                "wes",
+            ]
+        )
+        == 0
+    )
+
+    text = config.read_text(encoding="utf-8")
+    assert "input_dir: data" in text
+    assert "output_dir: results/promis" in text
+    assert "assay_mode: wes" in text
+    assert "promis check --configfile" in capsys.readouterr().out
+
+
+def test_cli_prints_run_summary(tmp_path, monkeypatch, capsys) -> None:
+    captured = _run_cli(tmp_path, monkeypatch, ["--dry-run", "--cores", "2"])
+
+    out = capsys.readouterr().out
+    assert "PROMIS run" in out
+    assert "Samples: 0" in out
+    assert "Finished PROMIS run" in out
+    assert captured["command"][captured["command"].index("--cores") + 1] == "2"

@@ -45,7 +45,11 @@ def calculate_msi_percentages(results_df):
     Returns:
         tuple: Percentages of unstable and stable regions.
     """
+    results_df = results_df[results_df["Chromosome"] != "Summary"]
     total_regions = len(results_df)
+    if total_regions == 0:
+        return 0.0, 0.0
+
     unstable_count = len(results_df[results_df["MSI_Status"] == "Unstable"])
     stable_count = total_regions - unstable_count
 

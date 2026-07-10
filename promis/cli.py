@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .validation import load_config, validate_config
 from .workflow import (
     get_default_config_path,
     get_snakefile_path,
@@ -26,6 +27,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "instability analysis."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "-c",
@@ -117,6 +123,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the path to the installed workflow directory and exit.",
     )
     parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate the PROMIS config and input files, then exit.",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=str,
+        default=None,
+        help="Input directory to write into a config created by 'promis init'.",
+    )
+    parser.add_argument(
+        "--alignment-files",
+        type=str,
+        default=None,
+        help="Comma-separated BAM/CRAM paths to write into a config created by 'promis init'.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Output directory to write into a config created by 'promis init'.",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["wes", "wgs", "panel", "cfdna"],
+        default=None,
+        help="Assay mode label recorded when creating a config with 'promis init'.",
+    )
+    parser.add_argument(
         "-v",
         "--version",
         action="version",
@@ -128,6 +163,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args, extra_args = parser.parse_known_args(argv)
+    if args.command not in {None, "init", "check"}:
+        extra_args = [args.command, *extra_args]
+        args.command = None
 
     snakefile_path = Path(get_snakefile_path())
     default_config = Path(get_default_config_path())
@@ -156,6 +194,36 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.command == "init":
+        destination = Path(args.configfile).expanduser()
+        if not destination.is_absolute():
+            destination = destination.resolve()
+        if destination.exists() and not args.force:
+            parser.error(f"Refusing to overwrite existing file: {destination}")
+        config = load_config(default_config)
+        if args.input_dir is not None:
+            config["input_dir"] = args.input_dir
+            config["alignment_files"] = ""
+        if args.alignment_files is not None:
+            config["alignment_files"] = args.alignment_files
+            config["input_dir"] = ""
+        if args.output_dir is not None:
+            config["output_dir"] = args.output_dir
+        if args.mode is not None:
+            config["assay_mode"] = args.mode
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        import yaml
+
+        destination.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        sys.stdout.write(
+            f"Wrote PROMIS config to {destination}{os.linesep}"
+            f"Check it with:{os.linesep}"
+            f"promis check --configfile {destination}{os.linesep}"
+            f"Run it with:{os.linesep}"
+            f"promis --configfile {destination} -c 8{os.linesep}"
+        )
+        return 0
+
     if args.configfile:
         configfile = Path(args.configfile).expanduser()
         if not configfile.is_absolute():
@@ -174,6 +242,27 @@ def main(argv: list[str] | None = None) -> int:
             workdir = workdir.resolve()
     if not workdir.exists():
         parser.error(f"Working directory not found: {workdir}")
+
+    if args.check or args.command == "check":
+        try:
+            config = load_config(configfile)
+            result = validate_config(config, run_dir=workdir)
+        except ValueError as exc:
+            parser.error(str(exc))
+
+        sys.stdout.write(f"PROMIS config check: {configfile}{os.linesep}")
+        sys.stdout.write(f"Workdir: {workdir}{os.linesep}")
+        sys.stdout.write(f"Samples: {len(result.samples)}{os.linesep}")
+        for sample, alignment in result.samples.items():
+            sys.stdout.write(f"  {sample}: {alignment}{os.linesep}")
+        for warning in result.warnings:
+            sys.stdout.write(f"WARNING: {warning}{os.linesep}")
+        for error in result.errors:
+            sys.stdout.write(f"ERROR: {error}{os.linesep}")
+        if result.ok:
+            sys.stdout.write("PROMIS config check passed." + os.linesep)
+            return 0
+        return 1
 
     snakemake_executable = shutil.which("snakemake")
     if snakemake_executable is None:
@@ -213,7 +302,28 @@ def main(argv: list[str] | None = None) -> int:
     env = os.environ.copy()
     env.setdefault("PROMIS_WORKFLOW_DIR", str(snakefile_path.parent))
 
+    config = load_config(configfile)
+    check_result = validate_config(config, run_dir=workdir)
+    sys.stdout.write(
+        f"PROMIS run{os.linesep}"
+        f"Samples: {len(check_result.samples)}{os.linesep}"
+        f"Output: {config.get('output_dir', 'results/promis')}{os.linesep}"
+        f"Workdir: {workdir}{os.linesep}"
+        f"Cores: {args.cores}{os.linesep}"
+    )
     result = subprocess.run(command, cwd=str(workdir), env=env)
+    if result.returncode == 0:
+        output_dir = config.get("output_dir", "results/promis")
+        sys.stdout.write(
+            f"Finished PROMIS run{os.linesep}"
+            f"Cohort summary: {Path(output_dir) / 'combined_results.csv'}{os.linesep}"
+            f"Per-sample reports: {output_dir}{os.linesep}"
+        )
+    else:
+        sys.stdout.write(
+            "PROMIS run failed. Re-run with --printshellcmds for command details, "
+            "or inspect the Snakemake error above." + os.linesep
+        )
     return result.returncode
 
 

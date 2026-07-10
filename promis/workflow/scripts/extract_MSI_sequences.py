@@ -46,6 +46,23 @@ from rich.progress import Progress, track
 # Configure logging
 logger = logging.getLogger(__name__)
 
+OUTPUT_COLUMNS = [
+    "Chromosome",
+    "Region_Start",
+    "Region_End",
+    "Read_Start",
+    "Read_End",
+    "Read_Name",
+    "Read_Sequence",
+    "UMI",
+    "Mapping_Quality",
+    "Read_Length",
+    "Expected_Repeat",
+    "Repeat_Coordinates",
+    "Mean_Quality",
+    "Median_Quality",
+]
+
 
 def load_repeat_coordinates(repeats_file):
     logger.info(f"Loading repeat coordinates from: {repeats_file}")
@@ -185,6 +202,12 @@ def extract_reads_from_alignment(
                                 )
                     progress.advance(task)
 
+        if not extracted_data:
+            pd.DataFrame(columns=OUTPUT_COLUMNS).to_csv(output_file, index=False)
+            bam.close()
+            logger.info(f"No reads passed filters. Empty output saved to: {output_file}")
+            return
+
         extracted_df = pd.DataFrame(extracted_data)
         extracted_df["UMI"] = extracted_df["UMI"].fillna("NA")
         grouped = extracted_df.groupby(["Chromosome", "Repeat_Coordinates"])
@@ -268,7 +291,10 @@ def extract_reads_from_alignment(
             combined = pd.concat([dedup, supplemental], ignore_index=True)
             final_rows.append(combined)
 
-        final_df = pd.concat(final_rows, ignore_index=True)
+        if final_rows:
+            final_df = pd.concat(final_rows, ignore_index=True)
+        else:
+            final_df = pd.DataFrame(columns=OUTPUT_COLUMNS)
         final_df.to_csv(output_file, index=False)
         bam.close()
         logger.info(f"Deduplicated reads saved to: {output_file}")

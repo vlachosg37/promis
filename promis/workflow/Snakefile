@@ -14,6 +14,7 @@ repository. Configure paths and thresholds in ``config.yaml`` and launch with:
 from glob import glob
 from pathlib import Path
 
+from promis.validation import build_sample_map
 from promis.workflow import resolve_resource_path
 
 WORKFLOW_DIR = Path(workflow.source_path(".")).resolve()
@@ -31,7 +32,7 @@ def _resolve_resource_path(key, default_relative):
     return resolve_resource_path(
         config.get(key, default_relative),
         default_relative,
-        workflow.source_path(default_relative),
+        str(WORKFLOW_DIR / default_relative),
     )
 
 
@@ -117,10 +118,11 @@ if not alignment_files:
 if not output_dir:
     raise ValueError("Please specify the 'output_dir' path in the config.")
 
-sample_names = [
-    Path(alignment).name.removesuffix(".bam").removesuffix(".cram")
-    for alignment in alignment_files
-]
+sample_to_alignment, duplicate_samples = build_sample_map(alignment_files)
+if duplicate_samples:
+    raise ValueError("Duplicate sample names detected: " + ", ".join(duplicate_samples))
+
+sample_names = list(sample_to_alignment)
 
 rule all:
     """Generate per-sample MSI summaries and the combined cohort table."""
@@ -161,7 +163,7 @@ rule extract_reads:
     """Pull high-quality reads spanning MSI loci from each alignment file."""
 
     input:
-        alignment=lambda wildcards: alignment_files[sample_names.index(wildcards.sample)],
+        alignment=lambda wildcards: sample_to_alignment[wildcards.sample],
         repeats=repeats,
     output:
         extracted_csv="{output_dir}/{sample}/{sample}_extracted_reads.csv",
@@ -309,19 +311,29 @@ rule combine_results:
             sample_name = Path(result_file).parent.name
 
             if not summary_row.empty:
-                status_str = str(summary_row.iloc[0]["MSI_Status"])
-                print(f"Parsing: {status_str} from sample: {sample_name}")
-                match = re.match(r"([\d.]+)%.*\((\d+)/(\d+)", status_str)
-                if match:
+                summary = summary_row.iloc[0]
+                if "MSI_Score" in summary_row.columns:
+                    score = float(summary["MSI_Score"])
+                    unstable_count = int(summary["Unstable_Regions"])
+                    total_regions = int(summary["Total_Regions"])
+                    call_status = str(summary.get("Call_Status", "PASS"))
+                    unstable_regions = f"{unstable_count}/{total_regions}"
+                else:
+                    status_str = str(summary["MSI_Status"])
+                    match = re.match(r"([\d.]+)%.*\((\d+)/(\d+)", status_str)
+                    if not match:
+                        continue
                     score = float(match.group(1))
                     unstable_regions = f"{match.group(2)}/{match.group(3)}"
                     total_regions = int(match.group(3))
-                    combined_rows.append({
-                        "Score": score,
-                        "Unstable regions": unstable_regions,
-                        "Total regions": total_regions,
-                        "Sample": sample_name
-                    })
+                    call_status = "PASS"
+                combined_rows.append({
+                    "Score": score,
+                    "Unstable regions": unstable_regions,
+                    "Total regions": total_regions,
+                    "Call status": call_status,
+                    "Sample": sample_name
+                })
 
         combined_df = pd.DataFrame(combined_rows)
         combined_df.to_csv(output.combined_csv, index=False)

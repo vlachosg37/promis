@@ -20,6 +20,52 @@ from sklearn.mixture import GaussianMixture
 
 logger = logging.getLogger(__name__)
 
+OUTPUT_COLUMNS = [
+    "Chromosome",
+    "Region_Start",
+    "Region_End",
+    "Expected_Length",
+    "Expected_Length_Reads",
+    "Deviating_Reads",
+    "Mean",
+    "Median",
+    "Stable_Alleles",
+    "StdDev",
+    "Min",
+    "Max",
+    "% Deviating Reads",
+    "MSI_Status",
+    "MSI_Score",
+    "Unstable_Regions",
+    "Total_Regions",
+    "Callable_Regions",
+    "Call_Status",
+]
+
+
+def make_summary_row(percent_unstable=0.0, unstable_regions=0, total_regions=0, call_status="PASS"):
+    return {
+        "Chromosome": "Summary",
+        "Region_Start": None,
+        "Region_End": None,
+        "Expected_Length": None,
+        "Expected_Length_Reads": None,
+        "Deviating_Reads": None,
+        "Mean": None,
+        "Median": None,
+        "Stable_Alleles": None,
+        "StdDev": None,
+        "Min": None,
+        "Max": None,
+        "% Deviating Reads": None,
+        "MSI_Status": f"{percent_unstable:.2f}% Unstable ({unstable_regions}/{total_regions} regions)",
+        "MSI_Score": percent_unstable,
+        "Unstable_Regions": unstable_regions,
+        "Total_Regions": total_regions,
+        "Callable_Regions": total_regions,
+        "Call_Status": call_status,
+    }
+
 
 def load_data(input_file):
     """
@@ -252,6 +298,13 @@ def analyze_distribution(
     # Load input data
     data = load_data(input_file)
 
+    if data.empty:
+        pd.DataFrame([make_summary_row(call_status="NO_CALL")], columns=OUTPUT_COLUMNS).to_csv(
+            output_path, index=False
+        )
+        logger.info("Sample skipped: no repeat-length rows were available.")
+        return
+
     # Filter for reads where Context_Match is 'Pass'
     data = data[data["Context_Match"] == "Pass"]
 
@@ -260,6 +313,13 @@ def analyze_distribution(
         data["Total_Length_With_Extensions"], errors="coerce"
     )
     data = data.dropna(subset=["Total_Length_With_Extensions"])
+
+    if data.empty:
+        pd.DataFrame([make_summary_row(call_status="NO_CALL")], columns=OUTPUT_COLUMNS).to_csv(
+            output_path, index=False
+        )
+        logger.info("Sample skipped: no rows passed context and length filters.")
+        return
 
     # Sort data by Chromosome, Region_Start, and Region_End
     data["Chromosome_Sort"] = data["Chromosome"].str.extract(r"(\d+)").fillna(0).astype(int)
@@ -309,23 +369,9 @@ def analyze_distribution(
     # downstream steps can proceed.
     if results_df.empty:
         logger.info("Sample skipped: no regions passed the coverage threshold.")
-        empty_cols = [
-            "Chromosome",
-            "Region_Start",
-            "Region_End",
-            "Expected_Length",
-            "Expected_Length_Reads",
-            "Deviating_Reads",
-            "Mean",
-            "Median",
-            "Stable_Alleles",
-            "StdDev",
-            "Min",
-            "Max",
-            "% Deviating Reads",
-            "MSI_Status",
-        ]
-        pd.DataFrame(columns=empty_cols).to_csv(output_path, index=False)
+        pd.DataFrame([make_summary_row(call_status="NO_CALL")], columns=OUTPUT_COLUMNS).to_csv(
+            output_path, index=False
+        )
         return
 
     # Reorder columns to place Chromosome, Region_Start, Region_End, and Expected_Length first
@@ -357,23 +403,12 @@ def analyze_distribution(
     percent_unstable = (unstable_regions / total_regions) * 100 if total_regions > 0 else 0
 
     # Add summary row
-    summary_row = {
-        "Chromosome": "Summary",
-        "Region_Start": None,
-        "Region_End": None,
-        "Expected_Length": None,
-        "Expected_Length_Reads": None,
-        "Deviating_Reads": None,
-        "Mean": None,
-        "Median": None,
-        "StdDev": None,
-        "Min": None,
-        "Max": None,
-        "% Deviating Reads": None,
-        "MSI_Status": f"{percent_unstable:.2f}% Unstable ({unstable_regions}/{total_regions} regions)",
-    }
+    summary_row = make_summary_row(percent_unstable, unstable_regions, total_regions)
 
     results_df = pd.concat([results_df, pd.DataFrame([summary_row])], ignore_index=True)
+    for column in OUTPUT_COLUMNS:
+        if column not in results_df.columns:
+            results_df[column] = None
 
     # Ensure Chromosome is sorted naturally: chr1, chr2, ..., chrX, chrY
     def chromosome_sort_key(chrom):

@@ -59,6 +59,36 @@ def analyze_repeat_types(
     logger.info(f"Loading lengths data from {lengths_file}")
     lengths_df = pd.read_csv(lengths_file)
     lengths_df = lengths_df[lengths_df["Context_Match"] == "Pass"]
+    if lengths_df.empty:
+        pd.DataFrame(
+            columns=[
+                "Repeat_Unit",
+                "Count",
+                "Min_Length",
+                "Max_Length",
+                "Median_Length",
+                "Std_Length",
+                "% Unstable",
+            ]
+        ).to_csv(f"{output_dir}/{sample}_repeat_type_summary.csv", index=False)
+        for output_file, title in (
+            (
+                f"{output_dir}/{sample}_repeat_unit_instability_barplot.pdf",
+                "Top 20 Repeat Units by % Unstable",
+            ),
+            (
+                f"{output_dir}/{sample}_repeat_length_vs_instability_scatterplot.pdf",
+                "Repeat Length vs. % Unstable",
+            ),
+        ):
+            plt.figure(figsize=(8, 4))
+            plt.title(title)
+            plt.text(0.5, 0.5, "No callable repeats", ha="center", va="center")
+            plt.axis("off")
+            plt.tight_layout()
+            plt.savefig(output_file)
+            plt.close()
+        return
 
     lengths_df["Repeat_Length"] = lengths_df["Expected_Repeat"].apply(parse_repeat_length)
     lengths_df["Repeat_Type"] = lengths_df["Expected_Repeat"].apply(classify_repeat_type)

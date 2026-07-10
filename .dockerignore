@@ -1,6 +1,8 @@
 .git/
 .github/
 .snakemake/
+build_tmp/
+dist/
 output/
 logs/
 results/

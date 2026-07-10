@@ -39,10 +39,11 @@ jobs:
       - name: Validate image
         run: |
           docker run --rm promis:ci python -m compileall promis tests
-          docker run --rm promis:ci pytest
           docker run --rm promis:ci python tests/create_tiny_bam.py
+          docker run --rm promis:ci pytest
           docker run --rm promis:ci snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml -n --cores 1
           docker run --rm promis:ci snakemake -s promis/workflow/Snakefile --configfile config/config.test.yaml --cores 1
+          docker run --rm promis:ci snakemake -s promis/workflow/Snakefile --configfile config/config.golden.yaml --cores 1
 
       - uses: eWaterCycle/setup-apptainer@v2
 

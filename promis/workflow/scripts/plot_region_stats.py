@@ -29,6 +29,16 @@ def plot_cytoband_instability(distr_df, cytobands_file, output_cytoband_file):
     Grouped by chromosome arms (p/q) instead of exact cytobands.
     """
     logger.info(f"Loading cytoband data from {cytobands_file}")
+    if distr_df.empty:
+        plt.figure(figsize=(8, 4))
+        plt.title("Cytoband Arm Instability (% Unstable Regions)")
+        plt.text(0.5, 0.5, "No callable regions", ha="center", va="center")
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(output_cytoband_file, dpi=600)
+        plt.close()
+        return
+
     cytobands_df = pd.read_csv(
         cytobands_file, sep="\t", names=["Chromosome", "Start", "End", "Band", "Stain"]
     )
@@ -113,6 +123,23 @@ def plot_mean_stddev_variation(
     logger.info(f"Loading distribution data from {distr_file}")
     distr_df = pd.read_csv(distr_file)
     logger.info(f"Distribution file columns: {distr_df.columns.tolist()}")
+    distr_df = distr_df[distr_df["Chromosome"] != "Summary"].copy()
+
+    if distr_df.empty:
+        for output_file, title in (
+            (output_scatter_file, "Repeat Length with Variability"),
+            (output_heatmap_file, "% Deviating Reads Across Regions"),
+        ):
+            plt.figure(figsize=(8, 4))
+            plt.title(title)
+            plt.text(0.5, 0.5, "No callable regions", ha="center", va="center")
+            plt.axis("off")
+            plt.tight_layout()
+            plt.savefig(output_file, dpi=600)
+            plt.close()
+        if cytoband_file and output_cytoband_file:
+            plot_cytoband_instability(distr_df, cytoband_file, output_cytoband_file)
+        return
 
     # Remove 'chr' for consistent chromosome grouping
     distr_df["Chromosome"] = distr_df["Chromosome"].str.replace("chr", "")

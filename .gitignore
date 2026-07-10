@@ -14,6 +14,7 @@ logs/
 results/
 dist/
 build_tmp/
+*.egg-info/
 *.sif
 *.tar
 
@@ -21,6 +22,10 @@ build_tmp/
 !tests/data/tiny_loci.csv
 !tests/data/tiny.bam
 !tests/data/tiny.bam.bai
+!tests/data/toy_mss.bam
+!tests/data/toy_mss.bam.bai
+!tests/data/toy_msi.bam
+!tests/data/toy_msi.bam.bai
 
 # Local user/HPC input data
 /data/
