@@ -14,22 +14,20 @@ PROMIS is a tumor-only, reference-free microsatellite instability (MSI) caller b
 
 ## Installation
 
-### Installed package mode
-
-After the Bioconda release:
-
-```bash
-mamba create -n promis -c bioconda -c conda-forge promis
-conda activate promis
-```
-
-Current source install equivalent:
+### Local source install for manual testing
 
 ```bash
 git clone https://github.com/vlachosg37/promis.git
 cd promis
-python -m pip install .
+mamba create -n promis-manual -c conda-forge -c bioconda \
+  python=3.12 pip pandas numpy scikit-learn matplotlib-base seaborn pysam \
+  pyyaml rich tqdm numba snakemake-minimal
+mamba activate promis-manual
+python -m pip install . --no-deps
 ```
+
+Run manual tests from a project directory outside the repository so relative
+outputs and resources behave like an installed package.
 
 ## Running the pipeline
 
