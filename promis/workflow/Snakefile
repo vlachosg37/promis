@@ -3,7 +3,7 @@
 Each rule orchestrates a step of the tumor-only MSI calling workflow:
 1. Extract reads spanning microsatellite loci.
 2. Estimate repeat lengths and instability.
-3. Summarize and visualize MSI burden per sample.
+3. Summarize MSI burden per sample.
 
 The workflow expects aligned BAM/CRAM files and reference metadata shipped with the
 repository. Configure paths and thresholds in ``config.yaml`` and launch with:
@@ -52,7 +52,6 @@ repeats = _resolve_resource_path(
     "repeats",
     "database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv",
 )
-cytoband = _resolve_resource_path("cytoband", "database/cytoBand_hg38.txt")
 scripts_dir = _resolve_resource_path("scripts_dir", "scripts")
 output_dir = config.get("output_dir", "results/promis")
 reference_genome = config.get("reference_genome", "")
@@ -71,7 +70,6 @@ balance_tolerance = parse_float(config.get("balance_tolerance", 0.01), "balance_
 min_total_reads = parse_int(config.get("min_total_reads", 50), "min_total_reads")
 
 config["repeats"] = repeats
-config["cytoband"] = cytoband
 config["scripts_dir"] = scripts_dir
 
 alignment_files = collect_alignment_files(config, Path.cwd())
@@ -98,31 +96,6 @@ rule all:
         ),
         f"{output_dir}/resolved_config.yaml",
         f"{output_dir}/run_metadata.json",
-        expand(
-            "{output_dir}/{sample}/{sample}_repeat_type_summary.csv",
-            output_dir=output_dir,
-            sample=sample_names,
-        ),
-        expand(
-            "{output_dir}/{sample}/{sample}_barplot_MSI.pdf",
-            output_dir=output_dir,
-            sample=sample_names,
-        ),
-        expand(
-            "{output_dir}/{sample}/{sample}_scatter_plot.pdf",
-            output_dir=output_dir,
-            sample=sample_names,
-        ),
-        expand(
-            "{output_dir}/{sample}/{sample}_heatmap_plot.pdf",
-            output_dir=output_dir,
-            sample=sample_names,
-        ),
-        expand(
-            "{output_dir}/{sample}/{sample}_cytoband_instability_plot.pdf",
-            output_dir=output_dir,
-            sample=sample_names,
-        ),
 
 rule write_provenance:
     """Write resolved config and run metadata for reproducible reviewer handoff."""
@@ -160,7 +133,6 @@ rule write_provenance:
             {
                 "output_dir": output_dir,
                 "repeats": repeats,
-                "cytoband": cytoband,
                 "scripts_dir": scripts_dir,
                 "reference_genome": reference_genome,
                 "alignment_files": alignment_files,
@@ -190,7 +162,6 @@ rule write_provenance:
             "samples": sample_to_alignment,
             "resources": {
                 "repeats": repeats,
-                "cytoband": cytoband,
                 "scripts_dir": scripts_dir,
             },
             "thresholds": thresholds,
@@ -264,63 +235,6 @@ rule analyze_distribution:
             {params.gmm_flag} \
             --balance_tolerance {balance_tolerance} \
             --min_total_reads {min_total_reads}
-        """
-
-rule plot_msi_status:
-    """Plot MSI status barplots summarizing unstable loci."""
-
-    input:
-        distribution_csv="{output_dir}/{sample}/{sample}_distribution_analysis.csv",
-    output:
-        barplot="{output_dir}/{sample}/{sample}_barplot_MSI.pdf",
-    conda:
-        ENV_FILE
-    shell:
-        """
-        python "{scripts_dir}/plot_MSI_results.py" -i {input.distribution_csv} -o {output.barplot}
-        """
-
-rule plot_region_stats:
-    """Generate per-region scatter, heatmap, and cytoband visualizations."""
-
-    input:
-        distribution_csv="{output_dir}/{sample}/{sample}_distribution_analysis.csv",
-    output:
-        scatter_plot="{output_dir}/{sample}/{sample}_scatter_plot.pdf",
-        heatmap_plot="{output_dir}/{sample}/{sample}_heatmap_plot.pdf",
-        cytoband_plot="{output_dir}/{sample}/{sample}_cytoband_instability_plot.pdf",
-    conda:
-        ENV_FILE
-    shell:
-        """
-        python "{scripts_dir}/plot_region_stats.py" \
-        -d {input.distribution_csv} \
-        -s {output.scatter_plot} \
-        -m {output.heatmap_plot} \
-        -c {cytoband} \
-        --cytoband_output {output.cytoband_plot}
-        """
-
-
-rule analyze_repeat_types:
-    """Summarize instability by repeat unit and length categories."""
-
-    input:
-        lengths_csv="{output_dir}/{sample}/{sample}_repeats_analysis.csv",
-    output:
-        summary_csv="{output_dir}/{sample}/{sample}_repeat_type_summary.csv",
-        instability_plot="{output_dir}/{sample}/{sample}_repeat_unit_instability_barplot.pdf",
-        length_vs_instability_plot="{output_dir}/{sample}/{sample}_repeat_length_vs_instability_scatterplot.pdf",
-    conda:
-        ENV_FILE
-    shell:
-        """
-        python "{scripts_dir}/repeat_type_stats.py" \
-            -l {input.lengths_csv} \
-            -o $(dirname {output.summary_csv}) \
-            --plot_instability \
-            --plot_length_vs_instability \
-            --sample {wildcards.sample}
         """
 
 rule combine_results:

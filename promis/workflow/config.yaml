@@ -1,12 +1,11 @@
-# Default configuration for the PROMIS workflow.
-# Relative output and input paths are resolved from the directory where Snakemake
-# is executed. Bundled resource paths below are resolved from the installed
-# workflow directory when left unchanged.
-repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv  # MSI loci metadata bundled with PROMIS
-cytoband: database/cytoBand_hg38.txt  # Cytoband annotations used for plotting
-scripts_dir: scripts  # Override if you maintain custom script versions
+# Default PROMIS configuration for hg38 WES/WGS input.
+# WGS input is recommended at >30x coverage; adjust depth-sensitive thresholds
+# only after validating them for your cohort.
+preset: wes-wgs-hg38
+repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv  # Bundled hg38 MSI loci.
+scripts_dir: scripts  # Bundled PROMIS analysis scripts.
 reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
-container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with Snakemake Apptainer/Singularity deployment
+container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with Apptainer/Singularity deployment.
 
 # Output directory for generated reports and tables.
 output_dir: results/promis
@@ -14,7 +13,7 @@ output_dir: results/promis
 # Input alignments. Provide either:
 # - alignment_files: comma-separated BAM/CRAM paths
 # - input_dir: directory scanned recursively for BAM/CRAM files
-alignment_files: ""
+alignment_files: []
 input_dir: ""
 
 # Read extraction and quality thresholds.
@@ -25,8 +24,7 @@ bq_threshold: 20  # Minimum base quality for included reads
 mq_threshold: 40  # Minimum mapping quality for included reads
 
 # Instability calling logic. The final sample score is the percentage of
-# unstable evaluable loci. combined_results.csv also reports Score_Fraction on
-# the 0-1 scale. Samples with no evaluable loci are QC failures, not MSS calls.
+# unstable evaluable loci. Samples with no evaluable loci are QC failures.
 call_by: both  # "both" means min_dev_reads AND min_dev_percent must pass
 min_dev_percent: 10.0  # Minimum percentage of deviating reads for instability
 min_length_percent: 20.0  # Minimum percent difference from reference length

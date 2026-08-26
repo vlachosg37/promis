@@ -9,12 +9,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 from . import __version__
 from .validation import load_config, validate_config
 from .workflow import (
     get_default_config_path,
+    get_preset_path,
     get_snakefile_path,
     get_workflow_path,
+    list_presets,
 )
 
 DEFAULT_CONFIG_FILENAME = "config.yaml"
@@ -22,265 +26,143 @@ DEFAULT_CONFIG_FILENAME = "config.yaml"
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "PROMIS launches the packaged Snakemake workflow for microsatellite "
-            "instability analysis."
-        ),
+        description="PROMIS launches the packaged Snakemake MSI workflow.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("command", nargs="?", help="init, check, run, or presets")
+    parser.add_argument("config_path", nargs="?", help="Configuration YAML for check or run.")
+    parser.add_argument("-c", "--cores", default=1, help="Cores available to Snakemake.")
+    parser.add_argument("-j", "--jobs", default=None, help="Maximum concurrent Snakemake jobs.")
     parser.add_argument(
-        "command",
-        nargs="?",
-        help=argparse.SUPPRESS,
+        "--configfile", "--config", dest="configfile", default=DEFAULT_CONFIG_FILENAME,
+        help="Configuration YAML path.",
     )
-    parser.add_argument(
-        "-c",
-        "--cores",
-        default=1,
-        help="Total cores available to Snakemake. Use 'all' to use all available cores.",
-    )
-    parser.add_argument(
-        "-j",
-        "--jobs",
-        default=None,
-        help="Maximum concurrent Snakemake jobs, mainly useful with cluster/executor/profile modes.",
-    )
-    parser.add_argument(
-        "--configfile",
-        type=str,
-        default=DEFAULT_CONFIG_FILENAME,
-        help="Path to a Snakemake configuration YAML file.",
-    )
-    parser.add_argument(
-        "--workdir",
-        type=str,
-        default=None,
-        help=(
-            "Working directory from which Snakemake should execute the workflow. "
-            "Defaults to the current directory; relative config and output paths "
-            "resolve from this directory."
-        ),
-    )
+    parser.add_argument("--preset", choices=list_presets(), default="wes-wgs-hg38")
+    parser.add_argument("--workdir", default=None, help="Snakemake working directory.")
     deployment_group = parser.add_mutually_exclusive_group()
-    deployment_group.add_argument(
-        "--use-conda",
-        action="store_true",
-        help="Use Snakemake conda deployment.",
-    )
-    deployment_group.add_argument(
-        "--use-apptainer",
-        action="store_true",
-        help="Use Snakemake Apptainer deployment.",
-    )
-    deployment_group.add_argument(
-        "--use-singularity",
-        action="store_true",
-        help="Alias for Snakemake Apptainer/Singularity deployment.",
-    )
-    parser.add_argument(
-        "--conda-prefix",
-        type=str,
-        default=None,
-        help="Optional directory used by Snakemake to store Conda environments.",
-    )
-    parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Perform a dry run without executing rules (passes --dry-run to Snakemake).",
-    )
-    parser.add_argument(
-        "--keep-going",
-        action="store_true",
-        help="Continue independent jobs after failures (Snakemake's --keep-going).",
-    )
-    parser.add_argument(
-        "-p",
-        "--printshellcmds",
-        action="store_true",
-        help="Print shell commands that Snakemake executes.",
-    )
-    parser.add_argument(
-        "--print-config",
-        action="store_true",
-        help="Print the packaged default configuration file and exit.",
-    )
-    parser.add_argument(
-        "--copy-config",
-        type=str,
-        default=None,
-        metavar="PATH",
-        help="Copy the packaged default configuration file to PATH and exit.",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Allow --copy-config to overwrite an existing file.",
-    )
-    parser.add_argument(
-        "--workflow-dir",
-        action="store_true",
-        help="Print the path to the installed workflow directory and exit.",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Validate the PROMIS config and input files, then exit.",
-    )
-    parser.add_argument(
-        "--input-dir",
-        type=str,
-        default=None,
-        help="Input directory to write into a config created by 'promis init'.",
-    )
-    parser.add_argument(
-        "--alignment-files",
-        type=str,
-        default=None,
-        help="Comma-separated BAM/CRAM paths to write into a config created by 'promis init'.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default=None,
-        help="Output directory to write into a config created by 'promis init'.",
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["wes", "wgs", "panel", "cfdna"],
-        default=None,
-        help="Assay mode label recorded when creating a config with 'promis init'.",
-    )
-    parser.add_argument(
-        "-v",
-        "--version",
-        action="version",
-        version=f"PROMIS {__version__}",
-    )
+    deployment_group.add_argument("--use-conda", action="store_true")
+    deployment_group.add_argument("--use-apptainer", action="store_true")
+    deployment_group.add_argument("--use-singularity", action="store_true")
+    parser.add_argument("--conda-prefix", default=None)
+    parser.add_argument("-n", "--dry-run", action="store_true")
+    parser.add_argument("--keep-going", action="store_true")
+    parser.add_argument("-p", "--printshellcmds", action="store_true")
+    parser.add_argument("--print-config", action="store_true")
+    parser.add_argument("--copy-config", metavar="PATH", default=None)
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--workflow-dir", action="store_true")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--input-dir", default=None)
+    parser.add_argument("--alignment-files", default=None)
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--mode", choices=["wes", "wgs", "panel", "cfdna"], default=None)
+    parser.add_argument("-v", "--version", action="version", version=f"PROMIS {__version__}")
     return parser
+
+
+def _destination(path: str) -> Path:
+    destination = Path(path).expanduser()
+    return destination if destination.is_absolute() else destination.resolve()
+
+
+def _copy_template(source: Path, destination: Path, force: bool) -> None:
+    if destination.exists() and not force:
+        raise ValueError(f"Refusing to overwrite existing file: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _print_check(configfile: Path, workdir: Path) -> int:
+    result = validate_config(load_config(configfile), run_dir=workdir)
+    print(f"PROMIS config check: {configfile}")
+    print(f"Workdir: {workdir}")
+    print(f"Samples: {len(result.samples)}")
+    for sample, alignment in result.samples.items():
+        print(f"  {sample}: {alignment}")
+    for warning in result.warnings:
+        print(f"WARNING: {warning}")
+    for error in result.errors:
+        print(f"ERROR: {error}")
+    if result.ok:
+        print("PROMIS config check passed.")
+        return 0
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args, extra_args = parser.parse_known_args(argv)
-    if args.command not in {None, "init", "check"}:
+    commands = {"init", "check", "run", "presets"}
+    if args.command not in commands | {None}:
         extra_args = [args.command, *extra_args]
         args.command = None
 
-    snakefile_path = Path(get_snakefile_path())
     default_config = Path(get_default_config_path())
-
     if args.print_config:
-        sys.stdout.write(default_config.read_text())
+        sys.stdout.write(default_config.read_text(encoding="utf-8"))
         return 0
-
     if args.workflow_dir:
-        sys.stdout.write(str(get_workflow_path()) + os.linesep)
+        print(get_workflow_path())
+        return 0
+    if args.command == "presets":
+        print("\n".join(list_presets()))
         return 0
 
+    template = Path(get_preset_path(args.preset))
     if args.copy_config:
-        display_destination = args.copy_config
-        destination = Path(args.copy_config).expanduser()
-        if not destination.is_absolute():
-            destination = destination.resolve()
-        if destination.exists() and not args.force:
-            parser.error(f"Refusing to overwrite existing file: {destination}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(default_config.read_text(), encoding="utf-8")
-        sys.stdout.write(
-            f"Wrote default PROMIS config to {display_destination}{os.linesep}"
-            f"Edit this file, then run:{os.linesep}"
-            f"promis --configfile {display_destination} -c 8{os.linesep}"
-        )
+        try:
+            _copy_template(template, _destination(args.copy_config), args.force)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(f"Wrote PROMIS {args.preset} config to {args.copy_config}")
         return 0
 
     if args.command == "init":
-        destination = Path(args.configfile).expanduser()
-        if not destination.is_absolute():
-            destination = destination.resolve()
-        if destination.exists() and not args.force:
-            parser.error(f"Refusing to overwrite existing file: {destination}")
-        config = load_config(default_config)
-        if args.input_dir is not None:
-            config["input_dir"] = args.input_dir
-            config["alignment_files"] = ""
-        if args.alignment_files is not None:
-            config["alignment_files"] = args.alignment_files
-            config["input_dir"] = ""
-        if args.output_dir is not None:
-            config["output_dir"] = args.output_dir
-        if args.mode is not None:
-            config["assay_mode"] = args.mode
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        import yaml
-
-        destination.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-        sys.stdout.write(
-            f"Wrote PROMIS config to {destination}{os.linesep}"
-            f"Check it with:{os.linesep}"
-            f"promis check --configfile {destination}{os.linesep}"
-            f"Run it with:{os.linesep}"
-            f"promis --configfile {destination} -c 8{os.linesep}"
-        )
+        config_target = args.config_path or args.configfile
+        destination = _destination(config_target)
+        try:
+            _copy_template(template, destination, args.force)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.input_dir is not None or args.alignment_files is not None or args.output_dir is not None:
+            config = load_config(destination)
+            if args.input_dir is not None:
+                config["input_dir"] = args.input_dir
+                config["alignment_files"] = []
+            if args.alignment_files is not None:
+                config["alignment_files"] = [
+                    item.strip() for item in args.alignment_files.split(",") if item.strip()
+                ]
+                config["input_dir"] = ""
+            if args.output_dir is not None:
+                config["output_dir"] = args.output_dir
+            destination.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        print(f"Wrote PROMIS {args.preset} config to {destination}")
+        print(f"Check it with: promis check {destination}")
+        print(f"Run it with: promis run {destination} --cores 8")
         return 0
 
-    if args.configfile:
-        configfile = Path(args.configfile).expanduser()
-        if not configfile.is_absolute():
-            configfile = configfile.resolve()
-    else:
-        configfile = default_config
-
+    configfile = _destination(args.config_path or args.configfile)
     if not configfile.exists():
         parser.error(f"Configuration file not found: {configfile}")
-
-    if args.workdir is None:
-        workdir = Path.cwd().resolve()
-    else:
-        workdir = Path(args.workdir).expanduser()
-        if not workdir.is_absolute():
-            workdir = workdir.resolve()
+    workdir = _destination(args.workdir) if args.workdir else Path.cwd().resolve()
     if not workdir.exists():
         parser.error(f"Working directory not found: {workdir}")
 
     if args.check or args.command == "check":
-        try:
-            config = load_config(configfile)
-            result = validate_config(config, run_dir=workdir)
-        except ValueError as exc:
-            parser.error(str(exc))
+        return _print_check(configfile, workdir)
 
-        sys.stdout.write(f"PROMIS config check: {configfile}{os.linesep}")
-        sys.stdout.write(f"Workdir: {workdir}{os.linesep}")
-        sys.stdout.write(f"Samples: {len(result.samples)}{os.linesep}")
-        for sample, alignment in result.samples.items():
-            sys.stdout.write(f"  {sample}: {alignment}{os.linesep}")
-        for warning in result.warnings:
-            sys.stdout.write(f"WARNING: {warning}{os.linesep}")
-        for error in result.errors:
-            sys.stdout.write(f"ERROR: {error}{os.linesep}")
-        if result.ok:
-            sys.stdout.write("PROMIS config check passed." + os.linesep)
-            return 0
-        return 1
-
+    check_result = validate_config(load_config(configfile), run_dir=workdir)
+    if not check_result.ok:
+        return _print_check(configfile, workdir)
     snakemake_executable = shutil.which("snakemake")
     if snakemake_executable is None:
-        parser.error(
-            "The 'snakemake' executable was not found. Install snakemake-minimal "
-            "or snakemake in the current environment."
-        )
+        parser.error("The 'snakemake' executable was not found in the current environment.")
 
     command = [
-        snakemake_executable,
-        "--snakefile",
-        str(snakefile_path),
-        "--cores",
-        str(args.cores),
-        "--configfile",
-        str(configfile),
+        snakemake_executable, "--snakefile", get_snakefile_path(), "--cores", str(args.cores),
+        "--configfile", str(configfile),
     ]
-
     if args.jobs:
         command.extend(["--jobs", str(args.jobs)])
     if args.use_conda:
@@ -295,37 +177,25 @@ def main(argv: list[str] | None = None) -> int:
         command.append("--keep-going")
     if args.printshellcmds:
         command.append("--printshellcmds")
-
-    passthrough = [arg for arg in extra_args if arg != "--"]
-    command.extend(passthrough)
-
-    env = os.environ.copy()
-    env.setdefault("PROMIS_WORKFLOW_DIR", str(snakefile_path.parent))
+    command.extend(arg for arg in extra_args if arg != "--")
 
     config = load_config(configfile)
-    check_result = validate_config(config, run_dir=workdir)
-    sys.stdout.write(
-        f"PROMIS run{os.linesep}"
-        f"Samples: {len(check_result.samples)}{os.linesep}"
-        f"Output: {config.get('output_dir', 'results/promis')}{os.linesep}"
-        f"Workdir: {workdir}{os.linesep}"
-        f"Cores: {args.cores}{os.linesep}"
-    )
+    print("PROMIS run")
+    print(f"Preset: {config.get('preset', 'custom')}")
+    print(f"Samples: {len(check_result.samples)}")
+    print(f"Output: {config.get('output_dir', 'results/promis')}")
+    print(f"Workdir: {workdir}")
+    print(f"Cores: {args.cores}")
+    env = os.environ.copy()
+    env.setdefault("PROMIS_WORKFLOW_DIR", str(Path(get_snakefile_path()).parent))
     result = subprocess.run(command, cwd=str(workdir), env=env)
     if result.returncode == 0:
-        output_dir = config.get("output_dir", "results/promis")
-        sys.stdout.write(
-            f"Finished PROMIS run{os.linesep}"
-            f"Cohort summary: {Path(output_dir) / 'combined_results.csv'}{os.linesep}"
-            f"Per-sample reports: {output_dir}{os.linesep}"
-        )
-    else:
-        sys.stdout.write(
-            "PROMIS run failed. Re-run with --printshellcmds for command details, "
-            "or inspect the Snakemake error above." + os.linesep
-        )
+        output_dir = Path(config.get("output_dir", "results/promis"))
+        print("Finished PROMIS run")
+        print(f"Cohort summary: {output_dir / 'combined_results.csv'}")
+        print(f"Per-sample tables: {output_dir}")
     return result.returncode
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())

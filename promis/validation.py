@@ -9,11 +9,10 @@ from typing import Any
 
 import yaml
 
-from .workflow import get_workflow_path, resolve_resource_path
+from .workflow import get_workflow_path, list_presets, resolve_resource_path
 
 RESOURCE_DEFAULTS = {
     "repeats": "database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv",
-    "cytoband": "database/cytoBand_hg38.txt",
     "scripts_dir": "scripts",
 }
 VALID_CALL_BY = {"count", "percent", "both"}
@@ -28,7 +27,8 @@ NUMERIC_THRESHOLDS = {
     "balance_tolerance": float,
     "min_total_reads": int,
 }
-BOOLEAN_KEYS = {"use_GMM", "filter_common_unstable"}
+BOOLEAN_KEYS = {"use_GMM"}
+UNSUPPORTED_KEYS = {"collapse_umis", "filter_common_unstable", "common_unstable_threshold"}
 TRUE_VALUES = {"1", "true", "yes", "y"}
 FALSE_VALUES = {"0", "false", "no", "n"}
 
@@ -143,6 +143,17 @@ def validate_config(config: dict[str, Any], run_dir: str | Path | None = None) -
     errors: list[str] = []
     warnings: list[str] = []
 
+    if config.get("alignment_files") and config.get("input_dir"):
+        errors.append("Set either alignment_files or input_dir, not both.")
+
+    preset = config.get("preset")
+    if preset and str(preset) not in list_presets():
+        errors.append(f"Unknown preset: {preset}. Run 'promis presets' to list available presets.")
+
+    unsupported = sorted(UNSUPPORTED_KEYS.intersection(config))
+    if unsupported:
+        errors.append("Unsupported configuration keys: " + ", ".join(unsupported))
+
     alignment_files = collect_alignment_files(config, run_path)
     samples, duplicates = build_sample_map(alignment_files)
 
@@ -163,12 +174,18 @@ def validate_config(config: dict[str, Any], run_dir: str | Path | None = None) -
             continue
         index_path = _index_path_for_alignment(alignment_path)
         if not index_path.exists():
-            warnings.append(f"Alignment index not found: {index_path}")
+            errors.append(f"Alignment index not found: {index_path}")
         if suffix == ".cram" and not reference_genome:
             errors.append(f"CRAM input requires reference_genome: {alignment}")
 
-    if reference_genome and not Path(reference_genome).exists():
-        errors.append(f"Reference genome not found: {reference_genome}")
+    if reference_genome:
+        reference_path = Path(reference_genome).expanduser()
+        if not reference_path.is_absolute():
+            reference_path = run_path / reference_path
+        if not reference_path.exists():
+            errors.append(f"Reference genome not found: {reference_path}")
+        elif not Path(str(reference_path) + ".fai").exists():
+            errors.append(f"Reference genome index not found: {reference_path}.fai")
 
     workflow_dir = Path(get_workflow_path())
     for key, default_relative in RESOURCE_DEFAULTS.items():

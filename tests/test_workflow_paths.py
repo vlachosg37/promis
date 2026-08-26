@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from promis.workflow import get_workflow_path, resolve_resource_path
+from promis.workflow import get_preset_path, get_workflow_path, list_presets, resolve_resource_path
 
 
 def test_default_packaged_resources_resolve_under_workflow_dir(tmp_path) -> None:
@@ -8,7 +8,7 @@ def test_default_packaged_resources_resolve_under_workflow_dir(tmp_path) -> None
 
     defaults = [
         "database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv",
-        "database/cytoBand_hg38.txt",
+        "database/TSO500_hg19_sites_bed.csv",
         "scripts",
     ]
 
@@ -31,7 +31,7 @@ def test_custom_relative_resources_resolve_from_run_dir(tmp_path) -> None:
             "custom/test_loci.csv",
             "database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv",
         ),
-        ("custom/cytoBand.txt", "database/cytoBand_hg38.txt"),
+        ("custom/loci.csv", "database/TSO500_hg19_sites_bed.csv"),
         ("custom/scripts", "scripts"),
     ]
 
@@ -61,3 +61,13 @@ def test_absolute_resources_remain_unchanged(tmp_path) -> None:
     )
 
     assert Path(resolved) == absolute
+
+
+def test_packaged_presets_are_present() -> None:
+    assert list_presets() == [
+        "qs-hrd-hg38",
+        "tso500-hg19",
+        "wes-wgs-cfdna-hg38",
+        "wes-wgs-hg38",
+    ]
+    assert Path(get_preset_path("wes-wgs-cfdna-hg38")).is_file()

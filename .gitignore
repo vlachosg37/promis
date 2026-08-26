@@ -35,3 +35,8 @@ build_tmp/
 /*.cram
 /*.crai
 /*.sam
+# Local historical preset sources retained outside the packaged templates.
+config_TCGA.yaml
+config_QS_HRD.yaml
+config_TSO.yaml
+config_cfDNA.yaml

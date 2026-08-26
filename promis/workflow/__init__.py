@@ -30,6 +30,22 @@ def get_conda_env_path() -> str:
     return str(resources.files(__name__).joinpath("environment.yml"))
 
 
+def get_preset_path(name: str) -> str:
+    """Return the packaged configuration template for ``name``."""
+
+    return str(resources.files(__name__).joinpath("presets", f"{name}.yaml"))
+
+
+def list_presets() -> list[str]:
+    """Return the available packaged preset names."""
+
+    return sorted(
+        path.name.removesuffix(".yaml")
+        for path in resources.files(__name__).joinpath("presets").iterdir()
+        if path.name.endswith(".yaml")
+    )
+
+
 def resolve_resource_path(
     value: str | None,
     default_relative: str,
@@ -46,6 +62,12 @@ def resolve_resource_path(
     if candidate.as_posix() == Path(default_relative).as_posix():
         return str(Path(packaged_default_path).resolve())
 
+    if candidate.parts and candidate.parts[0] == "database":
+        workflow_root = Path(packaged_default_path).parents[1]
+        packaged_candidate = workflow_root / candidate
+        if packaged_candidate.exists():
+            return str(packaged_candidate.resolve())
+
     base_dir = Path.cwd() if run_dir is None else Path(run_dir)
     return str((base_dir / candidate).resolve())
 
@@ -55,5 +77,7 @@ __all__ = [
     "get_snakefile_path",
     "get_default_config_path",
     "get_conda_env_path",
+    "get_preset_path",
+    "list_presets",
     "resolve_resource_path",
 ]
