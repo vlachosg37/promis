@@ -50,9 +50,7 @@ def test_validate_config_rejects_conflicting_input_sources(tmp_path) -> None:
     bam.write_text("bam\n", encoding="utf-8")
     (tmp_path / "sample.bam.bai").write_text("index\n", encoding="utf-8")
 
-    result = validate_config(
-        {"alignment_files": [str(bam)], "input_dir": "data"}, run_dir=tmp_path
-    )
+    result = validate_config({"alignment_files": [str(bam)], "input_dir": "data"}, run_dir=tmp_path)
 
     assert not result.ok
     assert "Set either alignment_files or input_dir, not both." in result.errors

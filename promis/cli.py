@@ -34,7 +34,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-c", "--cores", default=1, help="Cores available to Snakemake.")
     parser.add_argument("-j", "--jobs", default=None, help="Maximum concurrent Snakemake jobs.")
     parser.add_argument(
-        "--configfile", "--config", dest="configfile", default=DEFAULT_CONFIG_FILENAME,
+        "--configfile",
+        "--config",
+        dest="configfile",
+        default=DEFAULT_CONFIG_FILENAME,
         help="Configuration YAML path.",
     )
     parser.add_argument("--preset", choices=list_presets(), default="wes-wgs-hg38")
@@ -124,7 +127,11 @@ def main(argv: list[str] | None = None) -> int:
             _copy_template(template, destination, args.force)
         except ValueError as exc:
             parser.error(str(exc))
-        if args.input_dir is not None or args.alignment_files is not None or args.output_dir is not None:
+        if (
+            args.input_dir is not None
+            or args.alignment_files is not None
+            or args.output_dir is not None
+        ):
             config = load_config(destination)
             if args.input_dir is not None:
                 config["input_dir"] = args.input_dir
@@ -160,8 +167,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("The 'snakemake' executable was not found in the current environment.")
 
     command = [
-        snakemake_executable, "--snakefile", get_snakefile_path(), "--cores", str(args.cores),
-        "--configfile", str(configfile),
+        snakemake_executable,
+        "--snakefile",
+        get_snakefile_path(),
+        "--cores",
+        str(args.cores),
+        "--configfile",
+        str(configfile),
     ]
     if args.jobs:
         command.extend(["--jobs", str(args.jobs)])

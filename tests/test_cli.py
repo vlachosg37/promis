@@ -21,7 +21,9 @@ def _run_cli(tmp_path, monkeypatch, args):
     config = tmp_path / "config.yaml"
     _write_config(config, bam)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "snakemake" if name == "snakemake" else None)
+    monkeypatch.setattr(
+        cli.shutil, "which", lambda name: "snakemake" if name == "snakemake" else None
+    )
     captured = {}
 
     def fake_run(command, cwd, env):
@@ -54,7 +56,7 @@ def test_init_preserves_commented_cfdna_template(tmp_path, capsys) -> None:
     assert cli.main(["init", "--preset", "wes-wgs-cfdna-hg38", "--config", str(config)]) == 0
     text = config.read_text(encoding="utf-8")
     assert "cfDNA sequenced with WES/WGS-style data" in text
-    assert "reference_genome: \"\"  # Required only for CRAM input" in text
+    assert 'reference_genome: ""  # Required only for CRAM input' in text
     assert "min_dev_percent: 4.0" in text
     assert "promis run" in capsys.readouterr().out
 
@@ -79,7 +81,9 @@ def test_check_passes_for_existing_bam_and_index(tmp_path, capsys) -> None:
 
 def test_check_rejects_no_input(tmp_path, capsys) -> None:
     config = tmp_path / "config.yaml"
-    config.write_text("preset: wes-wgs-hg38\nalignment_files: []\ninput_dir: ''\n", encoding="utf-8")
+    config.write_text(
+        "preset: wes-wgs-hg38\nalignment_files: []\ninput_dir: ''\n", encoding="utf-8"
+    )
     assert cli.main(["check", str(config)]) == 1
     assert "No alignment files found" in capsys.readouterr().out
 
