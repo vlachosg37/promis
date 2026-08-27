@@ -93,5 +93,7 @@ same output directory.
 
 ## Citation
 
-Vlachos et al., *PROMIS: tumor-only profiling of microsatellite instability*,
-bioRxiv (2025), DOI: TBD.
+Vlachos et al., *Reference-free microsatellite instability detection from tumor
+sequencing using intrasample variability modeling*, *Computational and
+Structural Biotechnology Journal* (2026), DOI:
+[10.34133/csbj.0219](https://doi.org/10.34133/csbj.0219).
