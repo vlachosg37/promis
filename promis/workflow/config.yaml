@@ -11,7 +11,8 @@ container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with A
 output_dir: results/promis
 
 # Input alignments. Provide either:
-# - alignment_files: comma-separated BAM/CRAM paths
+# - alignment_files: a YAML list, or a comma-and-space-separated string such as
+#   "/data/sample_1.bam, /data/sample_2.bam"
 # - input_dir: directory scanned recursively for BAM/CRAM files
 alignment_files: []
 input_dir: ""

@@ -5,7 +5,9 @@ repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.cs
 scripts_dir: scripts  # Bundled PROMIS analysis scripts.
 reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
 output_dir: results/promis  # Directory for PROMIS tables and run metadata.
-alignment_files: []  # Explicit BAM/CRAM files. Leave empty when using input_dir.
+# Explicit BAM/CRAM files. A comma-and-space-separated string also works, e.g.:
+# alignment_files: "/data/sample_1.bam, /data/sample_2.bam"
+alignment_files: []  # Leave empty when using input_dir.
 input_dir: ""  # Directory scanned recursively for BAM/CRAM files.
 msi_deviation: 0.1  # Read-level repeat-length shift used during repeat analysis.
 min_reads: 5  # Minimum deduplicated reads retained at an MSI locus.
