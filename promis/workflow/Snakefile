@@ -22,11 +22,13 @@ from promis.validation import (
     parse_int,
     validate_config,
 )
-from promis.workflow import resolve_resource_path
+from promis.workflow import get_workflow_path, resolve_resource_path
 
-WORKFLOW_DIR = Path(workflow.source_path(".")).resolve()
+# Snakemake may execute this packaged Snakefile through its source cache.  Use
+# the installed package location for bundled resources instead of that cache.
+WORKFLOW_DIR = Path(get_workflow_path()).resolve()
 DEFAULT_CONFIG_PATH = WORKFLOW_DIR / "config.yaml"
-ENV_FILE = str(Path(workflow.source_path("environment.yml")).resolve())
+ENV_FILE = str(WORKFLOW_DIR / "environment.yml")
 
 configfile: str(DEFAULT_CONFIG_PATH)
 
