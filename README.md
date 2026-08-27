@@ -139,10 +139,9 @@ algorithm behavior: `toy_mss` should score 0/5 unstable loci and `toy_msi`
 should score 2/5 unstable loci.
 
 The final PROMIS sample score is the percentage of unstable evaluable loci.
-`combined_results.csv` preserves the legacy `Score` column and adds
-`Score_Percent`, `Score_Fraction`, `Evaluable_Loci`, `Unstable_Loci`, and
-`QC_Status` for unambiguous downstream use. `call_by: both` means the deviating
-read count and deviating read percentage thresholds must both pass. The
+`combined_results.csv` starts with `Sample` and contains `Score`,
+`Evaluable_Loci`, `Unstable_Loci`, and `QC_Status` for downstream use.
+`call_by: both` means the deviating read count and deviating read percentage thresholds must both pass. The
 `msi_deviation` setting is a read-level repeat-length shift threshold; it is not
 the final sample score threshold. Samples with no evaluable loci are reported as
 QC failures rather than true MSS calls.
@@ -328,17 +327,39 @@ public and pullable. Version tags are preferred for reproducibility; `latest` is
 only a convenience tag.
 
 ## Optional: Discovering microsatellite loci
-PROMIS ships with a helper CLI, `promis-find-ms-sites`, to scan a reference genome for microsatellite loci:
+
+PROMIS ships with `promis-find-ms-sites` to create a custom loci CSV compatible
+with PROMIS. It uses all available CPU cores by default; pass `--cores` to limit
+the worker count on a shared node.
+
+Scan the whole reference genome:
+
+```bash
+promis-find-ms-sites --reference hg38.fa --output hg38_msi_loci.csv --cores 8
+```
+
+Restrict discovery to a BED panel:
+
+```bash
+promis-find-ms-sites --reference hg38.fa --output panel_msi_loci.csv --bed panel.bed --cores 8
+```
+
+Restrict discovery to genomic intervals in a BAM meeting a coverage threshold:
 
 ```bash
 promis-find-ms-sites \
   --reference hg38.fa \
   --output hg38_msi_loci.csv \
   --bam example.bam \
-  --min-coverage 30
+  --min-coverage 30 \
+  --cores 8
 ```
 
-The resulting CSV can be used as a custom loci file in the PROMIS configuration.
+Use the resulting CSV as a custom loci file in a PROMIS configuration:
+
+```yaml
+repeats: /absolute/path/to/custom_msi_loci.csv
+```
 
 ## Citation
 Vlachos et al., PROMIS: tumor-only profiling of microsatellite instability, bioRxiv (2025), DOI: TBD
