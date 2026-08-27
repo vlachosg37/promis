@@ -1,0 +1,19 @@
+# PROMIS preset for the QS-HRD hg38 targeted panel.
+preset: qs-hrd-hg38
+repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv  # Bundled hg38 MSI loci.
+scripts_dir: scripts  # Bundled PROMIS analysis scripts.
+reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
+output_dir: results/promis  # Directory for PROMIS tables and run metadata.
+alignment_files: []  # Explicit BAM/CRAM files. Leave empty when using input_dir.
+input_dir: ""  # Directory scanned recursively for BAM/CRAM files.
+msi_deviation: 0.1  # Read-level repeat-length shift used during repeat analysis.
+min_reads: 50  # Minimum deduplicated reads retained at an MSI locus.
+min_dev_reads: 5  # Minimum deviating reads required to call a locus unstable.
+bq_threshold: 20  # Minimum mean base quality for retained reads.
+mq_threshold: 40  # Minimum mapping quality for retained reads.
+call_by: both  # Require both the read-count and percentage criteria.
+min_dev_percent: 10.0  # Minimum percentage of deviating reads at a locus.
+min_length_percent: 20.0  # Minimum repeat-length difference from the stable length.
+use_GMM: true  # Use Gaussian-mixture refinement of the stable repeat length.
+balance_tolerance: 0.05  # Allowed imbalance between GMM components.
+min_total_reads: 50  # Minimum reads required for a locus to be evaluable.

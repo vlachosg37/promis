@@ -24,15 +24,15 @@ def test_collect_alignment_files_from_input_dir_is_sorted(tmp_path) -> None:
     ]
 
 
-def test_validate_config_warns_for_missing_index(tmp_path) -> None:
+def test_validate_config_rejects_missing_index(tmp_path) -> None:
     bam = tmp_path / "sample.bam"
     bam.write_text("not a real bam\n", encoding="utf-8")
 
     result = validate_config({"alignment_files": str(bam)}, run_dir=Path.cwd())
 
-    assert result.ok
+    assert not result.ok
     assert result.samples == {"sample": str(bam)}
-    assert result.warnings == [f"Alignment index not found: {bam}.bai"]
+    assert result.errors == [f"Alignment index not found: {bam}.bai"]
 
 
 def test_validate_config_rejects_invalid_boolean(tmp_path) -> None:
@@ -42,4 +42,28 @@ def test_validate_config_rejects_invalid_boolean(tmp_path) -> None:
     result = validate_config({"alignment_files": str(bam), "use_GMM": "maybe"}, run_dir=Path.cwd())
 
     assert not result.ok
-    assert "use_GMM must be a boolean value" in result.errors[0]
+    assert any("use_GMM must be a boolean value" in error for error in result.errors)
+
+
+def test_validate_config_rejects_conflicting_input_sources(tmp_path) -> None:
+    bam = tmp_path / "sample.bam"
+    bam.write_text("bam\n", encoding="utf-8")
+    (tmp_path / "sample.bam.bai").write_text("index\n", encoding="utf-8")
+
+    result = validate_config({"alignment_files": [str(bam)], "input_dir": "data"}, run_dir=tmp_path)
+
+    assert not result.ok
+    assert "Set either alignment_files or input_dir, not both." in result.errors
+
+
+def test_validate_config_rejects_ignored_legacy_keys(tmp_path) -> None:
+    bam = tmp_path / "sample.bam"
+    bam.write_text("bam\n", encoding="utf-8")
+    (tmp_path / "sample.bam.bai").write_text("index\n", encoding="utf-8")
+
+    result = validate_config(
+        {"alignment_files": [str(bam)], "collapse_umis": True}, run_dir=tmp_path
+    )
+
+    assert not result.ok
+    assert "Unsupported configuration keys: collapse_umis" in result.errors

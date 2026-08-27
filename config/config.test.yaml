@@ -5,7 +5,6 @@ container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with c
 
 output_dir: output/tiny-promis
 repeats: tests/data/tiny_loci.csv
-cytoband: promis/workflow/database/cytoBand_hg38.txt
 scripts_dir: promis/workflow/scripts
 
 min_reads: 1

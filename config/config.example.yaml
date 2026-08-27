@@ -1,21 +1,20 @@
-# User-facing PROMIS configuration template.
+# User-facing PROMIS configuration template for hg38 WES/WGS input.
 
 # Input alignments. Provide either:
 # - alignment_files: comma-separated BAM/CRAM paths
 # - input_dir: directory scanned recursively for BAM/CRAM files
 # BAM works without a reference genome; CRAM requires reference_genome to point
 # to the matching FASTA.
-alignment_files: ""
+alignment_files: []
 input_dir: ""
-reference_genome: ""
+reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
 container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with Snakemake Apptainer/Singularity deployment
 
 # Output directory for PROMIS tables and plots.
 output_dir: output/promis
 
-# Bundled resources. Override only when using custom loci or annotations.
+# Bundled resources. Override only when using custom loci or scripts.
 repeats: promis/workflow/database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv
-cytoband: promis/workflow/database/cytoBand_hg38.txt
 scripts_dir: promis/workflow/scripts
 
 # Read extraction and quality thresholds.

@@ -5,9 +5,9 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version("promis")
+    __version__ = version("promis-msi")
 except PackageNotFoundError:  # pragma: no cover - fallback for local execution
-    __version__ = "0.1.1"
+    __version__ = "0.2.0"
 
 from .workflow import (  # noqa: E402
     get_default_config_path,

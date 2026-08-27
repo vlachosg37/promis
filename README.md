@@ -3,24 +3,32 @@
 [![CI](https://github.com/vlachosg37/promis/actions/workflows/ci.yml/badge.svg)](https://github.com/vlachosg37/promis/actions/workflows/ci.yml)
 
 ## Overview
-PROMIS is a tumor-only, reference-free microsatellite instability (MSI) caller built on Snakemake. It models repeat-length mixtures at hundreds of microsatellite loci and reports continuous MSI scores plus binary MSI-high/MSS status for whole-exome, whole-genome, targeted panel, and cell-free DNA sequencing data.
+PROMIS is a tumor-only, reference-free microsatellite instability (MSI) workflow built on Snakemake. It reports continuous MSI scores and evaluable-locus QC for whole-exome, whole-genome, targeted-panel, and cell-free DNA sequencing data.
 
 ## Features
 - Tumor-only workflow (no matched normal required)
 - Discrete mixture modeling at microsatellite loci
-- Continuous MSI score and binary MSI-high/MSS classification
-- Works on exome, genome, and targeted panel data (including cfDNA)
-- Bundled reference loci, plotting scripts, and a reproducible conda environment
+- Continuous MSI score with explicit evaluable-locus QC
+- Reviewed presets for hg38 WES/WGS, QS-HRD, TSO500 hg19, and hg38 WES/WGS cfDNA
+- Bundled loci and a reproducible conda environment
 
 ## Installation
 
-### Local source install for manual testing
+### Bioconda
+
+After the Bioconda recipe is merged, install PROMIS in one command:
+
+```bash
+mamba create -n promis -c conda-forge -c bioconda --strict-channel-priority promis-msi
+```
+
+### Local source install for development
 
 ```bash
 git clone https://github.com/vlachosg37/promis.git
 cd promis
 mamba create -n promis-manual -c conda-forge -c bioconda \
-  python=3.12 pip pandas numpy scikit-learn matplotlib-base seaborn pysam \
+  python=3.12 pip pandas numpy scikit-learn pysam \
   pyyaml rich tqdm numba snakemake-minimal
 mamba activate promis-manual
 python -m pip install . --no-deps
@@ -39,25 +47,29 @@ Run from a project directory, not from inside the installed package:
 mkdir promis_run
 cd promis_run
 
-promis --copy-config config.yaml
+promis presets
+promis init --preset wes-wgs-hg38 --config config.yaml
 nano config.yaml
-promis check --configfile config.yaml
-promis --configfile config.yaml -c 8
+promis check config.yaml
+promis run config.yaml --cores 8
 ```
 
 By default, the CLI launches the packaged workflow and writes relative outputs
 from the directory where you run `promis`. It does not enable conda or
 container deployment unless you request it.
 
+The `wes-wgs-cfdna-hg38` preset uses the hg38 WES/WGS loci with cfDNA-specific
+thresholds for cfDNA produced with WES/WGS-style sequencing.
+
 You can also create a pre-filled config for a project:
 
 ```bash
-promis init --configfile config.yaml --input-dir /path/to/bams --output-dir results/promis
-promis check --configfile config.yaml
-promis --configfile config.yaml -c 8
+promis init --preset wes-wgs-hg38 --config config.yaml --input-dir /path/to/bams --output-dir results/promis
+promis check config.yaml
+promis run config.yaml --cores 8
 ```
 
-Additional Snakemake options (for example `--config input_dir=... output_dir=...`) can be passed through after the known PROMIS options.
+Additional Snakemake options can be passed after `--`, for example `promis run config.yaml --cores 8 -- --profile slurm`.
 
 For direct Snakemake usage with an installed package:
 
@@ -69,14 +81,14 @@ snakemake \
 ```
 
 ## Configuration
-Place your `config.yaml` in the directory where you invoke `promis`, or point `--configfile` to its location. A template is packaged at `promis/workflow/config.yaml`; copy and edit it to set:
+Place your `config.yaml` in the directory where you invoke `promis`, or pass it to `promis check` and `promis run`. Generate a complete template with `promis init --preset NAME --config config.yaml`; edit it to set:
 - `output_dir`: destination for per-sample folders and combined results
-- `alignment_files` **or** `input_dir`: explicit comma-separated BAM/CRAM list or a directory to search recursively
-- `repeats`, `cytoband`, `scripts_dir`: override only if using custom resources
+- `alignment_files` **or** `input_dir`: explicit BAM/CRAM list or a directory to search recursively
+- `repeats`, `scripts_dir`: override only if using custom resources
 - Thresholds such as `min_reads`, `min_dev_reads`, `bq_threshold`, `mq_threshold`, `min_dev_percent`, and `use_GMM`
 
 Comments in the template describe each option. Leave bundled resource paths such
-as `repeats`, `cytoband`, and `scripts_dir` unchanged unless you have custom
+as `repeats` and `scripts_dir` unchanged unless you have custom
 resources; defaults resolve from the installed workflow, while custom relative
 resource paths resolve from the directory where you run PROMIS. Most users only
 need to edit `alignment_files`, `input_dir`, `output_dir`, `reference_genome`,
@@ -88,19 +100,16 @@ Two portable config templates are provided:
 
 ## Inputs
 - Coordinate-sorted, indexed BAM files for each tumor sample
-- Reference genome FASTA with accompanying index files (FAI, BWA/Bowtie2 if applicable)
+- Reference genome FASTA with `.fai` only for CRAM input; BAM input does not need it
 - MSI loci metadata provided in `promis/workflow/database/`
-- Optional sample sheet (columns: `sample`, `bam`) if you prefer to manage inputs outside the config file
 
 ## Outputs
 Results are organized under `output_dir` (default `results/promis`):
 - `<sample>/<sample>_extracted_reads.csv`: filtered reads spanning each MSI locus
 - `<sample>/<sample>_repeats_analysis.csv`: inferred repeat lengths per locus
 - `<sample>/<sample>_distribution_analysis.csv`: stability calls and MSI status per locus
-- `<sample>/<sample>_barplot_MSI.pdf`: MSI status barplot
-- `<sample>/<sample>_scatter_plot.pdf`, `<sample>/<sample>_heatmap_plot.pdf`, `<sample>/<sample>_cytoband_instability_plot.pdf`: region-level visualizations
-- `<sample>/<sample>_repeat_type_summary.csv` plus accompanying instability plots
 - `combined_results.csv`: cohort-level table summarizing MSI scores and unstable region counts
+- `resolved_config.yaml` and `run_metadata.json`: fully resolved settings and provenance
 
 ## Testing
 

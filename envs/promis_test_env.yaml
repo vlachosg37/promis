@@ -8,8 +8,6 @@ dependencies:
   - pandas
   - numpy
   - scikit-learn
-  - matplotlib-base
-  - seaborn
   - pyyaml
   - rich
   - tqdm
