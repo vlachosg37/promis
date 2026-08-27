@@ -24,6 +24,15 @@ def test_collect_alignment_files_from_input_dir_is_sorted(tmp_path) -> None:
     ]
 
 
+def test_collect_alignment_files_accepts_comma_and_space_separated_paths(tmp_path) -> None:
+    first = tmp_path / "first.bam"
+    second = tmp_path / "second.bam"
+
+    alignments = collect_alignment_files({"alignment_files": f"{first}, {second}"}, tmp_path)
+
+    assert alignments == [str(first), str(second)]
+
+
 def test_validate_config_rejects_missing_index(tmp_path) -> None:
     bam = tmp_path / "sample.bam"
     bam.write_text("not a real bam\n", encoding="utf-8")

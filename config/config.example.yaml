@@ -1,21 +1,24 @@
 # User-facing PROMIS configuration template for hg38 WES/WGS input.
+# Prefer `promis init --preset wes-wgs-hg38` to create a current template.
+preset: wes-wgs-hg38
 
 # Input alignments. Provide either:
-# - alignment_files: comma-separated BAM/CRAM paths
+# - alignment_files: a YAML list, or a comma-and-space-separated string such as
+#   "/data/sample_1.bam, /data/sample_2.bam"
 # - input_dir: directory scanned recursively for BAM/CRAM files
 # BAM works without a reference genome; CRAM requires reference_genome to point
 # to the matching FASTA.
 alignment_files: []
 input_dir: ""
 reference_genome: ""  # Required only for CRAM input; leave empty for BAM input.
-container_image: "docker://ghcr.io/vlachosg37/promis:latest"  # Used only with Snakemake Apptainer/Singularity deployment
 
-# Output directory for PROMIS tables and plots.
-output_dir: output/promis
+# Output directory for PROMIS tables and run metadata.
+output_dir: results/promis
 
-# Bundled resources. Override only when using custom loci or scripts.
-repeats: promis/workflow/database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv
-scripts_dir: promis/workflow/scripts
+# Bundled resources. These resolve from the installed PROMIS package; override
+# only when using custom loci or scripts.
+repeats: database/MSI_loci_hg38_coordinates_metadata_exonic_chr_rem_artefacts.csv
+scripts_dir: scripts
 
 # Read extraction and quality thresholds.
 min_reads: 5  # Minimum deduplicated reads per locus during extraction
