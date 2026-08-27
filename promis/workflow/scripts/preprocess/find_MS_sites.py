@@ -21,6 +21,7 @@ Requirements:
 """
 
 import argparse
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -29,8 +30,6 @@ import pysam
 from numba import njit
 from tqdm import tqdm
 
-# --- CONFIG ---
-NUM_THREADS = 64
 min_repeats = {1: 8, 2: 8, 3: 8, 4: 6}
 max_motif = 4
 context_length = 4  # bases for upstream/downstream context
@@ -60,9 +59,17 @@ def parse_args():
         default=30,
         help="Minimum coverage required when --bam is provided",
     )
+    parser.add_argument(
+        "--cores",
+        type=int,
+        default=os.cpu_count() or 1,
+        help="Worker processes to use (default: all available CPU cores)",
+    )
     args = parser.parse_args()
     if args.bed and args.bam:
         parser.error("Provide either --bed or --bam, not both")
+    if args.cores < 1:
+        parser.error("--cores must be at least 1")
     return args
 
 
@@ -236,7 +243,7 @@ def main():
 
     all_repeats = []
     tasks = []
-    with ProcessPoolExecutor(max_workers=NUM_THREADS) as executor:
+    with ProcessPoolExecutor(max_workers=args.cores) as executor:
         for chrom, intervals in intervals_by_chrom.items():
             for start, end in intervals:
                 tasks.append(

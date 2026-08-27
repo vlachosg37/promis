@@ -256,15 +256,13 @@ rule combine_results:
         from pathlib import Path
 
         columns = [
+            "Sample",
             "Score",
             "Unstable regions",
             "Total regions",
             "Call status",
-            "Sample",
             "Evaluable_Loci",
             "Unstable_Loci",
-            "Score_Percent",
-            "Score_Fraction",
             "QC_Status",
         ]
         inputs = list(input)
@@ -300,21 +298,16 @@ rule combine_results:
                 qc_status = call_status
                 if total_regions == 0:
                     score = pd.NA
-                    score_fraction = pd.NA
                     qc_status = "NO_EVALUABLE_LOCI"
                     call_status = "NO_EVALUABLE_LOCI"
-                else:
-                    score_fraction = score / 100.0
                 combined_rows.append({
+                    "Sample": sample_name,
                     "Score": score,
                     "Unstable regions": unstable_regions,
                     "Total regions": total_regions,
                     "Call status": call_status,
-                    "Sample": sample_name,
                     "Evaluable_Loci": total_regions,
                     "Unstable_Loci": unstable_count,
-                    "Score_Percent": score,
-                    "Score_Fraction": score_fraction,
                     "QC_Status": qc_status,
                 })
 
