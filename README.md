@@ -1,7 +1,7 @@
 # PROMIS: PROfiling of Microsatellite InStability
 
 [![CI](https://github.com/vlachosg37/promis/actions/workflows/ci.yml/badge.svg)](https://github.com/vlachosg37/promis/actions/workflows/ci.yml)
-[![Bioconda](https://anaconda.org/bioconda/promis-msi/badges/version.svg)](https://anaconda.org/bioconda/promis-msi)
+[![Bioconda](https://img.shields.io/conda/v/bioconda/promis-msi?label=Bioconda)](https://anaconda.org/bioconda/promis-msi)
 [![License](https://img.shields.io/github/license/vlachosg37/promis)](LICENSE)
 
 PROMIS is a tumor-only, reference-free workflow for microsatellite instability
