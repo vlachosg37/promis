@@ -1,6 +1,7 @@
 # PROMIS: PROfiling of Microsatellite InStability
 
 [![CI](https://github.com/vlachosg37/promis/actions/workflows/ci.yml/badge.svg)](https://github.com/vlachosg37/promis/actions/workflows/ci.yml)
+[![Bioconda](https://anaconda.org/bioconda/promis-msi/badges/version.svg)](https://anaconda.org/bioconda/promis-msi)
 [![License](https://img.shields.io/github/license/vlachosg37/promis)](LICENSE)
 
 PROMIS is a tumor-only, reference-free workflow for microsatellite instability
@@ -9,17 +10,13 @@ reports a continuous MSI score together with evaluable-locus QC.
 
 ## Install
 
-Bioconda installation will be added after `promis-msi` is accepted and
-published. Until then, install from source:
-
 ```bash
-git clone https://github.com/vlachosg37/promis.git
-cd promis
-mamba create -n promis -c conda-forge -c bioconda \
-  python=3.12 pip pandas numpy scikit-learn pysam pyyaml rich tqdm numba snakemake
-mamba activate promis
-python -m pip install . --no-deps
+conda create -n promis -c conda-forge -c bioconda promis-msi
+conda activate promis
 ```
+
+For installation from source and development, see
+[Development and release](docs/development.md).
 
 ## Run PROMIS
 
@@ -35,6 +32,12 @@ promis init --preset wes-wgs-hg38 --config config.yaml
 nano config.yaml
 promis check config.yaml
 promis run config.yaml --cores 8
+```
+
+If an interrupted run leaves a stale Snakemake lock, run:
+
+```bash
+promis run config.yaml --unlock
 ```
 
 `alignment_files` accepts a YAML list or a comma-and-space-separated string.
@@ -88,12 +91,11 @@ same output directory.
 
 - [Advanced run modes](docs/advanced-usage.md): direct Snakemake, Docker, and
   Apptainer/Singularity usage.
-- [Development and release](docs/development.md): tests, release checks, and
-  Bioconda submission workflow.
+- [Development and release](docs/development.md): tests, source installation,
+  and release workflow.
 
 ## Citation
 
-Vlachos et al., *Reference-free microsatellite instability detection from tumor
-sequencing using intrasample variability modeling*, *Computational and
-Structural Biotechnology Journal* (2026), DOI:
-[10.34133/csbj.0219](https://doi.org/10.34133/csbj.0219).
+Vlachos G, Moser T, Patel M, et al. *Reference-free microsatellite instability
+detection from tumor sequencing using intrasample variability modeling*. 2026.
+[10.34133/csbj.0219](https://doi.org/10.34133/csbj.0219)
